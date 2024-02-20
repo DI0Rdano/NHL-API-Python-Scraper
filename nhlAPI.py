@@ -302,6 +302,36 @@ def get_roster(team_code, season, sort="lastName", direction="ASC", input_valida
 
     return data
    
+def get_roster_seasons(team_code, input_validation=True):
+    """
+    Fetch data from the NHL API 'team roster-season' endpoint.
+
+    Parameters:
+    - team_code (str): The abbreviated code of the team, (ex. "TOR").
+    - input_validation (bool): Flag to enable/disable input validation. Default is True.
+
+    Returns:
+    - dict: Team roster seasons data as a json dictionary.
+    - None: In case of an error.
+    """
+
+    if input_validation:
+        # Validate team_code parameter
+        if not validate_team_code(team_code):
+            raise ValueError("(get_roster_season) Invalid team code.")
+
+    # Construct the URL for the 'roster' endpoint with sort and direction parameters
+    base_url = "https://api-web.nhle.com/v1/roster-season/"
+    url = f"{base_url}{team_code}"
+
+    # Make API request using the helper function
+    data = make_api_request(url)
+
+    if data is None:
+        return None
+
+    return data
+
 def get_player_landing(player_id, view=None, input_validation=True):
     """
     Fetch data from the NHL API 'player/landing' endpoint.
@@ -393,69 +423,238 @@ def get_player_gamelog(player_id, season, game_type=2, view="gameLog", input_val
 
     return data
 
-def get_players_stats(season, min_gp=1, sort=["points", "goals", "assists", "playerId"], direction=["DESC", "DESC", "DESC", "ASC"], game_type=2, input_validation=True):
+#TODO fill out factCayenneExp, add in functionality for game range, improve input validation
+def get_skaters_stats(season, report="summary", aggregate=True, min_gp=0, max_gp=None, sort_fields=["points", "goals", "assists", "playerId"], sort_direction=["DESC", "DESC", "DESC", "ASC"], game_type=2, start_season=None, end_season=None, franchise_id=None, opponent_franchise_id=None, position=None, skater_full_name=None, is_rookie=None, is_active=None, is_in_hall_of_fame=None, nationality_code=None, birth_state_province_code=None, home_or_road=None, game_result=None, draft_round=None, draft_year=None, shoots=None, skater_limit=100, sort=True, input_validation=True):
     """
-    Fetch data from the NHL API skater 'summary' endpoint.
+    Fetch data from the NHL API skater 'skater' endpoint.
 
     Parameters:
-    - season (str): The season to return the gamelog from (e.g., '20232024').
-    - min_gp (int): The minimum number of games played (default of 1).
-    - sort (str or list): The sort field(s) for the query. Can be a single string or a list of strings.
-    - direction (str or list): The sort direction(s) for the query. Can be a single string or a list of strings.
-    - game_type (int): The type of game (1 for pre-season, 2 for regular season, 3 for playoffs, 4 for all-star games). Default is 2.
-    - input_validation (bool): Flag to enable/disable input validation. Default is True.
+    - season (str): The season to return the skaters stats from (e.g., '20232024').
+    - report (str): The report type to return. Available report types are 'summary', 'bios', 'faceoffpercentages', 'faceoffwins', 'goalsForAgainst', etc.
+    - aggregate (bool): Boolean option to aggregate skaters stats over multiple seasons or games. Default is 'True'.
+    - min_gp (int): The minimum number of games played. Default is '0'.
+    - max_gp (int): The maximum number of games played. Default is 'None'.
+    - sort_fields (str or list): The sort field(s) for the query. Can be a single string or a list of strings.
+    - sor_direction (str or list): The sort direction(s) for the query. Can be a single string or a list of strings.
+    - game_type (int, optional): The type of game ('1' for pre-season, '2' for regular season, '3' for playoffs, '4' for all-star games). Default is '2'.
+    - start_season (str, optional): The starting season of the range. Default is 'None'.
+    - end_season (str, optional): The ending season of the range. Default is 'None'.
+    - franchise_id (int, optional): The franchise identifier to return the skaters stats from. Default is 'None' which returns all franchises.
+    - opponent_franchise_id (int, optional): The opponent franchise identifier to return the skaters stats from. Default is 'None' which returns all opponent franchises.
+    - position (str or list, optional): The positions of the skaters. Default is 'None' which returns all positions.
+    - skater_full_name (str, optional): The full name of the skater to filter. Default is 'None' which returns all skaters.
+    - is_rookie (bool, optional): Whether the skaters are a rookie (True to return rookies, False to exclude rookies / return veterans). Default is 'None' which returns all skaters.
+    - is_active (bool, optional): Whether the skaters are active (True to return active skaters, False to return incactive skaters). Default is 'None' which returns all skaters.
+    - is_in_hall_of_fame (bool, optional): Wether the skaters are in the hall of fame. Default is 'None' which returns all skaters.
+    - nationality_code (str, optional): The nationlity code of the skaters to return the stats from (e.g., 'CAN'). Default is 'None' which returns all nationalities.
+    - birth_state_province_code (str, optional): The birth state province code of the skaters to return the stats from (e.g., 'ON'). Default is 'None' which returns all birth state provinces.
+    - home_or_road (str, optional): The skaters stats from home or away games ('H' for home, 'R' for road/away).  Default is 'None' which returns all games.
+    - game_result (str, optional): The skaters stats from games with the provided result ('W' for wins, 'L' for losses, and 'O' for overtime losses). Default is 'None' which returns all game results.
+    - draft_round (int, optional): The draft round of the skaters to return the stats from. Default is 'None' which returns all rounds.
+    - draft_year (str, optional): The draft year of the skaters to return the stats from (e.g., '2012'). Note: if no draft round is input, returns from first round, and only returns data for a single draft round.  Default is 'None' which returns all draft years.
+    - shoots (str, optional): The handedness of the skaters to return the stats from ('L' for left, 'R' for right). Default is 'None' which returns all skaters.
+    - skater_limit (int): The max number of skaters in one loop (loops to return all skaters regardless of limit).  Default is '100'.
+    - sort (bool): Flag to enable/disable sorting. Default is 'True'.
+    - input_validation (bool): Flag to enable/disable input validation. Default is 'True'.
 
     Returns:
-    - list: List of dictionaries containing skater season summary stats.
+    - list: List of dictionaries containing skater(s) season stats.
     - None: In case of an error.
     """
     if input_validation:
         # Validate the minimum games played parameter
         if not validate_min_gp(min_gp):
             raise ValueError("Invalid minimum games played. Must be a positive integer.")
+        if max_gp is not None and not validate_min_gp(max_gp):
+            raise ValueError("Invalid maximum games played. Must be a positive integer.")
+
+        # Validate the aggregate seasons parameter
+        if not validate_boolean(aggregate):
+            raise ValueError("Invalid aggregate_seasons parameter. Must be a boolean.")
 
         # Validate the season parameter for player
         if not validate_season(season):
             raise ValueError("Invalid season.")
 
+        # Validate the report parameter
+        if not validate_sort_field(report, key="reports"):
+            raise ValueError("Invalid report type.")
+
         # Validate the sort field parameter
-        if not validate_sort_field(sort, key="players_stats"):
-            raise ValueError("Invalid sort field.")
+        if not validate_sort_field(sort_fields, key="skaters_stats"):
+            raise ValueError("Invalid sort_field.")
 
         # Validate the sort direction parameter
-        if not validate_sort_direction(direction):
-            raise ValueError("Invalid sort direction.")
+        if not validate_sort_direction(sort_direction):
+            raise ValueError("Invalid sort_direction.")
 
         # Validate the game type parameter
-        if not (1 <= game_type <= 4):
-            raise ValueError("Invalid game type. Must be an integer from 1 to 4.")
+        if game_type is not None and not (1 <= game_type <= 4):
+            raise ValueError("Invalid game_type. Must be an integer from 1 to 4.")
 
-    limit = 100
+        # Validate start_season and end_season if provided
+        if start_season is not None and not validate_season(start_season):
+            raise ValueError("Invalid start_season.")
 
-    # Construct the URL for the 'summary' endpoint
-    base_url = "https://api.nhle.com/stats/rest/en/skater/summary"
+        if end_season is not None and not validate_season(end_season):
+            raise ValueError("Invalid end_season.")
+        
+        # Validate the franchise_id if provided
+        if franchise_id is not None and not validate_integer(franchise_id):
+            raise ValueError("Invalid franchise_id.  Must be an integer.")
+        
+        # Validate the franchise_id if provided
+        if opponent_franchise_id is not None and not validate_integer(opponent_franchise_id):
+            raise ValueError("Invalid opponent_franchise_id.  Must be an integer.")
+        
+        # Validate position if provided
+        if position is not None:
+            if isinstance(position, str):
+                if position not in ["C", "L", "R", "D"]:
+                    raise ValueError("Invalid position. Must be one of 'C', 'L', 'R', 'D'.")
+            elif isinstance(position, list):
+                if not all(pos in ["C", "L", "R", "D"] for pos in position):
+                    raise ValueError("Invalid position list. Must contain only 'C', 'L', 'R', 'D'.")
 
-    # Convert sort and direction to lists if they are not already
-    sort = sort if isinstance(sort, list) else [sort]
-    direction = direction if isinstance(direction, list) else [direction]
+        # Validate the skater_full_name if provided
+        if skater_full_name is not None and not validate_string(skater_full_name):
+            raise ValueError("Invalid skater_full_name. Must be a string.")
+
+        # Validate is_rookie if provided
+        if is_rookie is not None and not validate_boolean(is_rookie):
+            raise ValueError("Invalid is_rookie parameter. Must be a boolean.")
+
+        # Validate skater_limit
+        if not validate_integer(skater_limit):
+            raise ValueError("Invalid skater_limit. Must be an integer.")
+        
+        # Validate is_active
+        if is_active is not None and not validate_boolean(is_active):
+            raise ValueError("Invalid is_active. Must be a boolean.")
+        
+        # Validate is_in_hall_of_fame
+        if is_active is not None and not validate_boolean(is_in_hall_of_fame):
+            raise ValueError("Invalid is_in_hall_of_fame. Must be a boolean.")
+        
+        # Validate the skater_full_name if provided
+        if nationality_code is not None and not validate_string(nationality_code):
+            raise ValueError("Invalid nationality_code. Must be a string.")
+        
+        # Validate the skater_full_name if provided
+        if birth_state_province_code is not None and not validate_string(birth_state_province_code):
+            raise ValueError("Invalid birth_state_province_code. Must be a string.")
+        
+        # Validate the home_or_road if provided
+        if home_or_road is not None and not validate_string(home_or_road):
+            raise ValueError("Invalid home_or_road. Must be a string.")
+        
+        # Validate the home_or_road if provided
+        if game_result is not None and not validate_string(game_result):
+            raise ValueError("Invalid game_result. Must be a string.")
+        
+        if not validate_boolean(sort):
+            raise ValueError("Invalid sort. Must be a boolean ('True' or 'False').")
+        
+        if not validate_boolean(input_validation):
+            raise ValueError("Invalid input_validation. Must be a boolean ('True' or 'False').")
+        
+        if draft_round is not None and not validate_integer(draft_round):
+            raise ValueError("Invalid draft_round. Must be an integer.")
+        
+        if draft_year is not None and not validate_string(draft_year):
+            raise ValueError("Invalid draft_year. Must be a string.")
+        
+        if shoots is not None and not validate_string(shoots):
+            raise ValueError("Invalid shoots. Must be a string ('L' or 'R').")
+
+    # Construct the URL for the 'skater' endpoint
+    base_url = "https://api.nhle.com/stats/rest/en/skater/" + report
+
+    # Construct the cayenneExp
+    if start_season is not None and end_season is not None:
+        cayenneExp = f"seasonId<={end_season} and seasonId>={start_season}"
+    else:
+        cayenneExp = f"seasonId={season}"
+    
+    if game_type is not None:
+        cayenneExp += f" and gameTypeId={game_type}"
+    
+    if franchise_id is not None:
+        cayenneExp += f" and franchiseId={franchise_id}"
+
+    if opponent_franchise_id is not None:
+        cayenneExp += f" and opponentFranchiseId={opponent_franchise_id}"
+
+    if position is not None:
+        if isinstance(position, str):
+            cayenneExp += f" and positionCode='{position}'"
+        elif isinstance(position, list):
+            position_exp = " or ".join([f"positionCode='{pos}'" for pos in position])
+            cayenneExp += f" and ({position_exp})"
+
+    if skater_full_name is not None:
+        cayenneExp += f" and skaterFullName likeIgnoreCase '%{skater_full_name}%'"
+
+    if is_rookie is not None:
+        cayenneExp += f" and isRookie={'1' if is_rookie else '0'}"
+
+    if is_active is not None:
+        cayenneExp += f" and active={'1' if is_active else '0'}"
+
+    if is_in_hall_of_fame is not None:
+        cayenneExp += f" and isInHallOfFame={'1' if is_in_hall_of_fame else '0'}"
+
+    if birth_state_province_code is not None:
+        cayenneExp += f" and birthStateProvinceCode='{birth_state_province_code}'"
+    
+    if nationality_code is not None:
+        cayenneExp += f" and nationalityCode='{nationality_code}'"
+
+    if home_or_road is not None:
+        cayenneExp += f" and homeRoad='{home_or_road}'"
+
+    if game_result is not None:
+        cayenneExp += f" and decision='{game_result}'"
+
+    if draft_round is not None:
+        cayenneExp += f" and draftRound={draft_round}"
+
+    if draft_year is not None:
+        cayenneExp += f" and draftYear='{draft_year}'"
+
+    if shoots is not None:
+        cayenneExp += f" and shootsCatches='{shoots}'"
+
+    # Construct the factCayenneExp 
+    factCayenneExp = f"gamesPlayed>={min_gp}"
+
+    if max_gp is not None:
+        factCayenneExp += f" and gamesPlayed<={max_gp}"
 
     # Construct the query parameters
-    sort_params = [{"property": field, "direction": dir} for field, dir in zip(sort, direction)]
-    sort_json = json.dumps(sort_params)
     params = {
-        "isAggregate": "false",
+        "isAggregate": str(aggregate),
         "isGame": "false",
         "start": "0",
-        "limit": str(limit),
-        "sort": sort_json,
-        "factCayenneExp": f"gamesPlayed>={min_gp}",
-        "cayenneExp": f"gameTypeId={game_type} and seasonId={season}"
+        "limit": str(skater_limit),
+        "factCayenneExp": factCayenneExp,
+        "cayenneExp": cayenneExp
     }
 
-    # Initialize an empty list to store the results
-    all_players_data = []
+    if sort:
+        # Convert sort and direction to lists if they are not already
+        sort_fields = sort_fields if isinstance(sort_fields, list) else [sort_fields]
+        sort_direction = sort_direction if isinstance(sort_direction, list) else [sort_direction]
 
-    # Loop over multiple times to fetch all players
+        # Construct the sort parameters
+        sort_params = [{"property": field, "direction": dir} for field, dir in zip(sort_fields, sort_direction)]
+        sort_json = json.dumps(sort_params)
+        params["sort"] = sort_json
+
+    # Initialize an empty list to store the results
+    all_skaters_data = []
+
+    # Loop over multiple times to fetch all skaters
     while True:
         # Construct the complete URL
         url = f"{base_url}?{'&'.join([f'{key}={value}' for key, value in params.items()])}"
@@ -466,16 +665,16 @@ def get_players_stats(season, min_gp=1, sort=["points", "goals", "assists", "pla
         if data is None:
             return None
 
-        all_players_data.extend(data.get("data", []))
+        all_skaters_data.extend(data.get("data", []))
 
         # Check if there are more players to fetch
-        if len(all_players_data) >= data.get("total", 0):
+        if len(all_skaters_data) >= data.get("total", 0):
             break
 
         # Update the starting position for the next request
-        params["start"] = str(len(all_players_data))
+        params["start"] = str(len(all_skaters_data))
 
-    return all_players_data
+    return all_skaters_data
 
 def get_schedule_calendar(date="now", input_validation=True):
     """
@@ -546,7 +745,7 @@ def get_schedule(date="now", input_validation=True):
         return roster_data
     except Exception as e:
         raise ValueError(f"Error fetching data: {e}")
-    
+
 def get_nhl_standings(date="now", input_validation=True):
     """
     Fetches NHL standings data for a specific date or today's date.
@@ -578,6 +777,26 @@ def get_nhl_standings(date="now", input_validation=True):
         return standings_data
     except Exception as e:
         raise ValueError(f"Error fetching standings data: {e}")
+
+def get_standings_seasons(): #TODO add sorting and views
+    """
+    Fetch data from the NHL API 'standings-season' endpoint.
+
+    Returns:
+    - dict: NHL standings available seasons data as a json dictionary.
+    - None: In case of an error.
+    """
+
+    # Construct the URL for the 'roster' endpoint with sort and direction parameters
+    url = "https://api-web.nhle.com/v1/standings-season"
+
+    # Make API request using the helper function
+    data = make_api_request(url)
+
+    if data is None:
+        return None
+
+    return data
 
 def get_scores(date="now", input_validation=True):
     """
@@ -818,7 +1037,117 @@ def get_team_information():
 
     return team_info
 
-#TODO get club schedule, club stats, etc
+def get_club_stats_seasons(team_code, input_validation=True):
+    """
+    Fetch data from the NHL API 'team roster' endpoint.
+
+    Parameters:
+    - team_code (str): The abbreviated code of the team, (ex. "TOR").
+    - input_validation (bool): Flag to enable/disable input validation. Default is True.
+
+    Returns:
+    - dict: Player roster data as a json dictionary.
+    - None: In case of an error.
+    """
+
+    if input_validation:
+        # Validate team_code parameter
+        if not validate_team_code(team_code):
+            raise ValueError("(get_club_stats_season) Invalid team code.")
+
+    # Construct the URL for the 'roster' endpoint with sort and direction parameters
+    base_url = "https://api-web.nhle.com/v1/club-stats-season/"
+    url = f"{base_url}{team_code}"
+
+    # Make API request using the helper function
+    data = make_api_request(url)
+
+    if data is None:
+        return None
+
+    return data
+
+def get_club_schedule_week(team_code, date="now", input_validation=True):
+    """
+    Fetches schedule data from the NHL API for a specific date.
+
+    Parameters:
+    - date (str, optional): The date for which to fetch the schedule data (in 'YYYY-MM-DD' format). Default is "now".
+    - team_code (str): The abbreviated code of the team, (ex. "TOR").
+    - input_validation (bool): Flag to enable/disable input validation. Default is True.
+
+    Returns:
+    - dict: Schedule data as a JSON dictionary.
+    - None: If there is an error fetching the data.
+    """
+
+    if input_validation:
+        # Validate team_code parameter
+        if not validate_team_code(team_code):
+            raise ValueError("(get_roster_season) Invalid team code.")
+
+    if date != "now" and input_validation:
+        # Validate date parameter and format if valid
+        formatted_date = format_date(date)
+        if not formatted_date:
+            raise ValueError("Invalid date format. Please provide the date in 'YYYY-MM-DD' format.")
+    else:
+        formatted_date = date
+
+    base_url = "https://api-web.nhle.com/v1/club-schedule/"
+    if formatted_date == "now":
+        url = f"{base_url}{team_code}/week/now"
+    else:
+        url = f"{base_url}{team_code}/week/{formatted_date}"
+
+    try:
+        roster_data = make_api_request(url)
+        return roster_data
+    except Exception as e:
+        raise ValueError(f"Error fetching data: {e}")
+
+def get_club_schedule_month(team_code, date="now", input_validation=True):
+    """
+    Fetches schedule data from the NHL API for a specific date.
+
+    Parameters:
+    - date (str, optional): The date for which to fetch the schedule data (in 'YYYY-MM-DD' format). Default is "now".
+    - team_code (str): The abbreviated code of the team, (ex. "TOR").
+    - input_validation (bool): Flag to enable/disable input validation. Default is True.
+
+    Returns:
+    - dict: Schedule data as a JSON dictionary.
+    - None: If there is an error fetching the data.
+    """
+
+    if input_validation:
+        # Validate team_code parameter
+        if not validate_team_code(team_code):
+            raise ValueError("(get_roster_season) Invalid team code.")
+
+    if date != "now" and input_validation:
+        # Validate date parameter and format if valid
+        formatted_date = format_month(date)
+        if not formatted_date:
+            raise ValueError("Invalid date format. Please provide the date in 'YYYY-MM-DD' format.")
+    else:
+        formatted_date = date
+
+    base_url = "https://api-web.nhle.com/v1/club-schedule/"
+    if formatted_date == "now":
+        url = f"{base_url}{team_code}/month/now"
+    else:
+        url = f"{base_url}{team_code}/month/{formatted_date}"
+
+    try:
+        roster_data = make_api_request(url)
+        return roster_data
+    except Exception as e:
+        raise ValueError(f"Error fetching data: {e}")
+
+#TODO get club stats
+
+
 
 #####################################################################################################################################################
 # Input validation for the various NHL API functions #########################################################################################
@@ -865,8 +1194,9 @@ def validate_sort_field(sort_field, key=None):
         "seasons": ["id", "allStarGameInUse", "conferencesInUse", "divisionsInUse", "endDate", "entryDraftInUse", "formattedSeasonId", "minimumPlayoffMinutesForGoalieStatsLeaders", "minimumRegularGamesForGoalieStatsLeaders", "nhlStanleyCupOwner", "numberOfGames", "olympicsParticipation", "pointForOTLossInUse", "preseasonStartdate", "regularSeasonEndDate", "rowInUse", "seasonOrdinal", "startDate", "supplementalDraftInUse", "tiesInUse", "totalPlayoffGames", "totalRegularSeasonGames", "wildcardInUse"],
         "draftrounds": ["draftYear", "id", "rounds"],
         "roster": ["lastName", "firstName"], # need to add the rest of the fields, also for players_stats
-        "players_stats": ["points", "evPoints", "goals", "evGoals", "otGoals", "gameWinningGoals", "assists", "playerId", "gamesPlayed", "faceoffWinPct", "penaltyMinutes"],
-        "shifts": [None, "id"] #add the rest
+        "skaters_stats": ["points", "evPoints", "goals", "evGoals", "otGoals", "gameWinningGoals", "assists", "playerId", "gamesPlayed", "faceoffWinPct", "penaltyMinutes"],
+        "shifts": [None, "id"], #add the rest
+        "reports": ["summary", "bios", "faceoffpercentages", "faceoffwins", "goalsForAgainst"] #need to add the rest
         # Add more keys and valid sort fields as needed
     }
 
@@ -1020,7 +1350,7 @@ def validate_min_gp(min_gp):
         # Attempt to convert the input to an integer
         int_value = int(min_gp)
         # Check if the integer is greater than zero
-        return int_value > 0
+        return int_value >= 0
     except ValueError:
         return False
 
@@ -1053,6 +1383,17 @@ def format_date(date_string):
         # Handle invalid date string
         raise ValueError("Error: Invalid date format")
     
+def format_month(date_string):
+    try:
+        # Parse the input date string
+        parsed_date = datetime.strptime(date_string, "%Y-%m-%d")
+        # Format the date as "YYYY-MM"
+        formatted_date = parsed_date.strftime("%Y-%m")
+        return formatted_date
+    except ValueError:
+        # Handle invalid date string
+        raise ValueError("Error: Invalid date format")
+    
 #TODO fix list comparison issues
 def validate_player_seasons(season, player_id):
     """
@@ -1080,3 +1421,7 @@ def validate_player_seasons(season, player_id):
 
     return False
 
+#TODO use get_config to validate skater_stats fields
+#TODO use get_club_stats_season to validate seasons for club_stats
+#TODO use get_roster_seasons to valdate season in get_roster
+#TODO validate get_skaters_stats parameters
