@@ -92,15 +92,16 @@ def get_config(view=None):
 
     return data
 
-def get_countries(include_stateProvinces=True, sort="countryName", direction="ASC", input_validation=True):
+def get_countries(include_stateProvinces=True, sort="countryName", direction="ASC", filter=None, input_validation=True):
     """
     Fetch data from the NHL API 'country' endpoint.
 
     Parameters:
-    - include_stateProvinces (bool): Whether to include state provinces in the response. Default is True.
-    - sort (str): Field to sort the countries by. Default is "countryName".
-    - direction (str): Sort direction. Default is "ASC".
-    - input_validation (bool): Flag to enable/disable input validation. Default is True.
+    - include_stateProvinces (bool): Whether to include state provinces in the response. Default is 'True'.
+    - sort (str, optional): Field to sort the countries by. Default is 'countryName'.
+    - direction (str): Sort direction ('ASC' for ascending, 'DESC' for descending). Default is 'ASC'.
+    - filter (str or list, optional): The fields to include in the json response. Default is 'None' which returns all fields.
+    - input_validation (bool): Flag to enable/disable input validation. Default is 'True'.
 
     Returns:
     - dict: country data as a json dictionary.
@@ -111,23 +112,52 @@ def get_countries(include_stateProvinces=True, sort="countryName", direction="AS
     if input_validation:
         # Validate include_stateProvinces parameter
         if not validate_boolean(include_stateProvinces):
-            raise ValueError("(get_countries) Invalid include state provinces parameter. Valid options are TRUE and FALSE as booleans.")
+            raise ValueError("(get_countries) Invalid include state provinces parameter. Valid options are 'TRUE' and 'FALSE' as booleans.")
 
         # Validate sort parameter
-        if not validate_sort_field(sort, key="countries"):
-            raise ValueError("(get_countries) Invalid sort field. Valid sorting fields include strings: id, country3Code, countryCode, countryName, hasPlayerStats, imageUrl, iocCode, isActive, nationalityName, olympicUrl, thumbnailUrl.")
+        if sort is not None:
+            if not validate_sort_field(sort, key="countries"):
+                raise ValueError("(get_countries) Invalid sort field. Valid fields include strings: 'id', 'country3Code', 'countryCode', 'countryName', 'hasPlayerStats', 'imageUrl', 'iocCode', 'isActive', 'nationalityName', 'olympicUrl', 'thumbnailUrl'.")
+            if not isinstance(sort, str):
+                raise ValueError("(get_countries) Input a single sort field. Valid fields include strings: 'id', 'country3Code', 'countryCode', 'countryName', 'hasPlayerStats', 'imageUrl', 'iocCode', 'isActive', 'nationalityName', 'olympicUrl', 'thumbnailUrl'.")
 
         # Validate direction parameter
         if not validate_sort_direction(direction.upper()):
-            raise ValueError("(get_countries) Invalid sort direction parameter.  Valid sorting options are ASC and DESC as strings.")
+            raise ValueError("(get_countries) Invalid sort direction parameter. Valid sorting options are 'ASC' and 'DESC' as strings.")
+
+        # Validate filter parameter
+        if filter is not None and not validate_sort_field(filter, key="countries"):
+            raise ValueError("(get_countries) Invalid filter field. Valid fields include strings: 'id', 'country3Code', 'countryCode', 'countryName', 'hasPlayerStats', 'imageUrl', 'iocCode', 'isActive', 'nationalityName', 'olympicUrl', 'thumbnailUrl'.")
+
+        # Validate input_validation parameter
+        if not validate_boolean(input_validation):
+            raise ValueError("(get_countries) Invalid input_validation parameter. Valid options are 'TRUE' and 'FALSE' as booleans.")
 
     # URL for the 'country' endpoint
-    url = f"https://api.nhle.com/stats/rest/en/country?sort=%5B%7B%22property%22:%22{sort}%22,%22direction%22:%22{direction.upper()}%22%7D%5D"
+    url = "https://api.nhle.com/stats/rest/en/country?"
 
+    # Sorting parameters
+    if sort is not None:
+        sort_param = [{"property": sort, "direction": direction.upper()}]
+        sort_json = json.dumps(sort_param)
+        url += f"sort={sort_json}"
+
+    # Include state provinces
     if include_stateProvinces:
-        url += "&include=stateProvinces"
+        if sort is not None:
+            url += "&"
+        url += "include=stateProvinces"
 
-    # Make API request using the helper function
+    # Filter parameters
+    if filter:
+        if sort is not None or include_stateProvinces:
+            url += "&"
+        if isinstance(filter, str):
+            url += f"include={filter}"
+        elif isinstance(filter, list):
+            url += "&".join([f"include={f}" for f in filter])
+
+    # Make API request
     data = make_api_request(url)
 
     if data is None:
@@ -172,15 +202,15 @@ def get_franchises(include_firstSeason=True, include_lastSeason=True, sort="full
     # URL for the 'franchise' endpoint with sort and direction parameters
     url = f"https://api.nhle.com/stats/rest/en/franchise?sort=%5B%7B%22property%22:%22{sort}%22,%22direction%22:%22{direction.upper()}%22%7D%5D"
 
-    # Include first season information if specified
+    # Include first season information
     if include_firstSeason:
         url += "&include=firstSeason"
     
-    # Include last season information if specified
+    # Include last season information
     if include_lastSeason:
         url += "&include=lastSeason"
 
-    # Make API request using the helper function
+    # Make API request
     data = make_api_request(url)
 
     if data is None:
@@ -424,7 +454,7 @@ def get_player_gamelog(player_id, season, game_type=2, view="gameLog", input_val
     return data
 
 #TODO fill out factCayenneExp, add in functionality for game range, improve input validation
-def get_skaters_stats(season, report="summary", aggregate=True, min_gp=0, max_gp=None, sort_fields=["points", "goals", "assists", "playerId"], sort_direction=["DESC", "DESC", "DESC", "ASC"], game_type=2, start_season=None, end_season=None, franchise_id=None, opponent_franchise_id=None, position=None, skater_full_name=None, is_rookie=None, is_active=None, is_in_hall_of_fame=None, nationality_code=None, birth_state_province_code=None, home_or_road=None, game_result=None, draft_round=None, draft_year=None, shoots=None, skater_limit=100, sort=True, input_validation=True):
+def get_skaters_stats(season, report="summary", aggregate=True, min_gp=0, max_gp=None, sort=["points", "goals", "assists", "playerId"], sort_direction=["DESC", "DESC", "DESC", "ASC"], game_type=2, start_season=None, end_season=None, franchise_id=None, opponent_franchise_id=None, position=None, skater_full_name=None, is_rookie=None, is_active=None, is_in_hall_of_fame=None, nationality_code=None, birth_state_province_code=None, home_or_road=None, game_result=None, draft_round=None, draft_year=None, shoots=None, skater_limit=100, input_validation=True):
     """
     Fetch data from the NHL API skater 'skater' endpoint.
 
@@ -434,7 +464,7 @@ def get_skaters_stats(season, report="summary", aggregate=True, min_gp=0, max_gp
     - aggregate (bool): Boolean option to aggregate skaters stats over multiple seasons or games. Default is 'True'.
     - min_gp (int): The minimum number of games played. Default is '0'.
     - max_gp (int): The maximum number of games played. Default is 'None'.
-    - sort_fields (str or list): The sort field(s) for the query. Can be a single string or a list of strings.
+    - sort (str or list, optional): The sort field(s) for the query. Can be a single string or a list of strings. 'None' returns skaters with no sorting.
     - sor_direction (str or list): The sort direction(s) for the query. Can be a single string or a list of strings.
     - game_type (int, optional): The type of game ('1' for pre-season, '2' for regular season, '3' for playoffs, '4' for all-star games). Default is '2'.
     - start_season (str, optional): The starting season of the range. Default is 'None'.
@@ -454,7 +484,6 @@ def get_skaters_stats(season, report="summary", aggregate=True, min_gp=0, max_gp
     - draft_year (str, optional): The draft year of the skaters to return the stats from (e.g., '2012'). Note: if no draft round is input, returns from first round, and only returns data for a single draft round.  Default is 'None' which returns all draft years.
     - shoots (str, optional): The handedness of the skaters to return the stats from ('L' for left, 'R' for right). Default is 'None' which returns all skaters.
     - skater_limit (int): The max number of skaters in one loop (loops to return all skaters regardless of limit).  Default is '100'.
-    - sort (bool): Flag to enable/disable sorting. Default is 'True'.
     - input_validation (bool): Flag to enable/disable input validation. Default is 'True'.
 
     Returns:
@@ -481,7 +510,7 @@ def get_skaters_stats(season, report="summary", aggregate=True, min_gp=0, max_gp
             raise ValueError("Invalid report type.")
 
         # Validate the sort field parameter
-        if not validate_sort_field(sort_fields, key="skaters_stats"):
+        if sort is not None and not validate_sort_field(sort, key="skaters_stats"):
             raise ValueError("Invalid sort_field.")
 
         # Validate the sort direction parameter
@@ -551,9 +580,6 @@ def get_skaters_stats(season, report="summary", aggregate=True, min_gp=0, max_gp
         # Validate the home_or_road if provided
         if game_result is not None and not validate_string(game_result):
             raise ValueError("Invalid game_result. Must be a string.")
-        
-        if not validate_boolean(sort):
-            raise ValueError("Invalid sort. Must be a boolean ('True' or 'False').")
         
         if not validate_boolean(input_validation):
             raise ValueError("Invalid input_validation. Must be a boolean ('True' or 'False').")
@@ -641,13 +667,13 @@ def get_skaters_stats(season, report="summary", aggregate=True, min_gp=0, max_gp
         "cayenneExp": cayenneExp
     }
 
-    if sort:
+    if sort is not None:
         # Convert sort and direction to lists if they are not already
-        sort_fields = sort_fields if isinstance(sort_fields, list) else [sort_fields]
+        sort = sort if isinstance(sort, list) else [sort]
         sort_direction = sort_direction if isinstance(sort_direction, list) else [sort_direction]
 
         # Construct the sort parameters
-        sort_params = [{"property": field, "direction": dir} for field, dir in zip(sort_fields, sort_direction)]
+        sort_params = [{"property": field, "direction": dir} for field, dir in zip(sort, sort_direction)]
         sort_json = json.dumps(sort_params)
         params["sort"] = sort_json
 
