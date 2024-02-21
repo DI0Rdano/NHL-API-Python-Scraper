@@ -18,50 +18,10 @@ import time
 session = requests.Session()
 
 #####################################################################################################################################################
-# JSON scraping functions for various NHL API endpoints #############################################################################################
+# Scraping functions for various NHL API endpoints ##################################################################################################
 #####################################################################################################################################################
 
-def make_api_request(url, timeout=10, retries=3, input_validation=True):
-    """
-    Make a request to the API and handle retries and error conditions.
-
-    Parameters:
-    - url (str): The URL to make the API request to.
-    - timeout (int): The timeout duration for the request in seconds. Default is 10.
-    - retries (int): The number of retry attempts in case of failure. Default is 3.
-    - input_validation (bool): Flag to enable/disable input validation. Default is True.
-
-    Returns:
-    - dict or None: The JSON response from the API or None in case of error.
-    """
-    # Input validation
-    if input_validation:
-        # Validate URL parameter
-        if not isinstance(url, str):
-            raise ValueError("(make_api_request) Invalid url, parameter must be a string.")
-
-        # Validate timeout parameter
-        if not isinstance(timeout, int):
-            raise ValueError("(make_api_request) Invalid timeout, parameter must be an integer.")
-
-        # Validate retries parameter
-        if not isinstance(retries, int):
-            raise ValueError("(make_api_request) Invalid retries, parameter must be an integer.")
-
-    for attempt in range(retries):
-        try:
-            response = requests.get(url, timeout=timeout)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            if attempt < retries - 1:
-                delay = (2 ** attempt) * 0.5  # Exponential backoff
-                time.sleep(delay)
-            else:
-                return None
-        except Exception as e:
-            return None
-
+#TODO add filter parameter instead of view if it works
 def get_config(view=None):
     """
     Fetch data from the NHL API 'config' endpoint.
@@ -98,8 +58,8 @@ def get_countries(include_stateProvinces=True, sort="countryName", direction="AS
 
     Parameters:
     - include_stateProvinces (bool): Whether to include state provinces in the response. Default is 'True'.
-    - sort (str, optional): Field to sort the countries by. Default is 'countryName'.
-    - direction (str): Sort direction ('ASC' for ascending, 'DESC' for descending). Default is 'ASC'.
+    - sort (str or list, optional): Field to sort the countries by. Default is 'countryName'.
+    - direction (str or list): Sort direction ('ASC' for ascending, 'DESC' for descending). Default is 'ASC'.
     - filter (str or list, optional): The fields to include in the json response. Default is 'None' which returns all fields.
     - input_validation (bool): Flag to enable/disable input validation. Default is 'True'.
 
@@ -115,32 +75,26 @@ def get_countries(include_stateProvinces=True, sort="countryName", direction="AS
             raise ValueError("(get_countries) Invalid include state provinces parameter. Valid options are 'TRUE' and 'FALSE' as booleans.")
 
         # Validate sort parameter
-        if sort is not None:
-            if not validate_sort_field(sort, key="countries"):
-                raise ValueError("(get_countries) Invalid sort field. Valid fields include strings: 'id', 'country3Code', 'countryCode', 'countryName', 'hasPlayerStats', 'imageUrl', 'iocCode', 'isActive', 'nationalityName', 'olympicUrl', 'thumbnailUrl'.")
-            if not isinstance(sort, str):
-                raise ValueError("(get_countries) Input a single sort field. Valid fields include strings: 'id', 'country3Code', 'countryCode', 'countryName', 'hasPlayerStats', 'imageUrl', 'iocCode', 'isActive', 'nationalityName', 'olympicUrl', 'thumbnailUrl'.")
+        if sort is not None and not validate_sort_field(sort, key="countries"):
+            raise ValueError("(get_countries) Invalid sort field. Valid fields include strings: 'id', 'country3Code', 'countryCode', 'countryName', 'hasPlayerStats', 'imageUrl', 'iocCode', 'isActive', 'nationalityName', 'olympicUrl', 'thumbnailUrl'.")
 
         # Validate direction parameter
-        if not validate_sort_direction(direction.upper()):
+        if not validate_sort_direction(direction):
             raise ValueError("(get_countries) Invalid sort direction parameter. Valid sorting options are 'ASC' and 'DESC' as strings.")
 
         # Validate filter parameter
         if filter is not None and not validate_sort_field(filter, key="countries"):
             raise ValueError("(get_countries) Invalid filter field. Valid fields include strings: 'id', 'country3Code', 'countryCode', 'countryName', 'hasPlayerStats', 'imageUrl', 'iocCode', 'isActive', 'nationalityName', 'olympicUrl', 'thumbnailUrl'.")
 
-        # Validate input_validation parameter
-        if not validate_boolean(input_validation):
-            raise ValueError("(get_countries) Invalid input_validation parameter. Valid options are 'TRUE' and 'FALSE' as booleans.")
 
     # URL for the 'country' endpoint
     url = "https://api.nhle.com/stats/rest/en/country?"
 
     # Sorting parameters
     if sort is not None:
-        sort_param = [{"property": sort, "direction": direction.upper()}]
-        sort_json = json.dumps(sort_param)
-        url += f"sort={sort_json}"
+        # Construct the sort parameters
+        sort_params = construct_sorting_params(sort, direction, input_validation)
+        url += sort_params
 
     # Include state provinces
     if include_stateProvinces:
@@ -158,22 +112,23 @@ def get_countries(include_stateProvinces=True, sort="countryName", direction="AS
             url += "&".join([f"include={f}" for f in filter])
 
     # Make API request
-    data = make_api_request(url)
+    data = make_api_request(url, input_validation=input_validation)
 
     if data is None:
         return None
 
     return data
 
-def get_franchises(include_firstSeason=True, include_lastSeason=True, sort="fullName", direction="ASC", input_validation=True):
+def get_franchises(include_firstSeason=True, include_lastSeason=True, sort="fullName", direction="ASC", filter=None, input_validation=True):
     """
     Fetch data from the NHL API 'franchise' endpoint.
 
     Parameters:
     - include_firstSeason (bool): Whether to include first season information. Default is True.
     - include_lastSeason (bool): Whether to include last season information. Default is True.
-    - sort (str): Field to sort the franchises by. Default is "fullName". Valid values are "fullName", "teamCommonName", "teamPlaceName", and "id".
-    - direction (str): Sort direction. Default is "ASC".
+    - sort (str or list, optional): Field to sort the franchises by. Default is "fullName". Valid values are "fullName", "teamCommonName", "teamPlaceName", and "id".
+    - direction (str or list): Sort direction. Default is "ASC".
+    - filter (str or list, optional): The fields to include in the json response. Default is 'None' which returns all fields.
     - input_validation (bool): Flag to enable/disable input validation. Default is True.
 
     Returns:
@@ -185,46 +140,72 @@ def get_franchises(include_firstSeason=True, include_lastSeason=True, sort="full
     if input_validation:
         # Validate include_firstSeason parameter
         if not validate_boolean(include_firstSeason):
-            raise ValueError("(get_franchises) Invalid include first season parameter. Valid options are TRUE and FALSE as booleans.")
+            raise ValueError("(get_franchises) Invalid include first season parameter. Valid options are 'TRUE' and 'FALSE' as booleans.")
 
         # Validate include_lastSeason parameter
         if not validate_boolean(include_lastSeason):
-            raise ValueError("(get_franchises) Invalid include last season parameter. Valid options are TRUE and FALSE as booleans.")
+            raise ValueError("(get_franchises) Invalid include last season parameter. Valid options are 'TRUE' and 'FALSE' as booleans.")
 
         # Validate sort parameter
-        if not validate_sort_field(sort, key="franchises"):
-            raise ValueError("(get_franchises) Invalid sort field. Valid sorting fields include strings: fullName, teamCommonName, teamPlaceName, id.")
-
+        if sort is not None and not validate_sort_field(sort, key="franchises"):
+            raise ValueError("(get_franchises) Invalid sort field. Valid sorting fields include strings: 'fullName', 'teamCommonName', 'teamPlaceName', 'id'.")
+            
         # Validate direction parameter
-        if not validate_sort_direction(direction.upper()):
+        if not validate_sort_direction(direction):
             raise ValueError("(get_franchises) Invalid sort direction parameter.  Valid sorting options are ASC and DESC as strings.")
 
-    # URL for the 'franchise' endpoint with sort and direction parameters
-    url = f"https://api.nhle.com/stats/rest/en/franchise?sort=%5B%7B%22property%22:%22{sort}%22,%22direction%22:%22{direction.upper()}%22%7D%5D"
+        # Validate filter parameter
+        if filter is not None and not validate_sort_field(filter, key="franchises"):
+            raise ValueError("(get_franchises) Invalid filter field. Valid fields include strings: 'fullName', 'teamCommonName', 'teamPlaceName', 'id'.")
 
-    # Include first season information
+
+    # URL for the 'franchise' endpoint
+    url = f"https://api.nhle.com/stats/rest/en/franchise?"
+
+    # Sorting parameters
+    if sort is not None:
+        # Construct the sort parameters
+        sort_params = construct_sorting_params(sort, direction, input_validation)
+        url += sort_params
+
+    # Include first season
     if include_firstSeason:
-        url += "&include=firstSeason"
+        if sort is not None:
+            url += "&"
+        url += "include=firstSeason"
+
     
-    # Include last season information
+    # Include first season
     if include_lastSeason:
-        url += "&include=lastSeason"
+        if sort is not None or include_firstSeason is not None:
+            url += "&"
+        url += "include=lastSeason"
+
+    # Filter parameters
+    if filter:
+        if sort is not None or include_firstSeason or include_lastSeason:
+            url += "&"
+        if isinstance(filter, str):
+            url += f"include={filter}"
+        elif isinstance(filter, list):
+            url += "&".join([f"include={f}" for f in filter])
 
     # Make API request
-    data = make_api_request(url)
+    data = make_api_request(url, input_validation=input_validation)
 
     if data is None:
         return None
 
     return data
 
-def get_seasons(sort="id", direction="DESC", input_validation=True):
+def get_seasons(sort="id", direction="DESC", filter=None, input_validation=True):
     """
     Fetch data from the NHL API 'season' endpoint.
 
     Parameters:
-    - sort (str): Field to sort the seasons by. Default is "id". Valid values are "id" and other fields present in the NHL API response.
-    - direction (str): Direction of sorting. Default is "DESC". Valid values are "ASC" (ascending) and "DESC" (descending).
+    - sort (str or list, optional): Field to sort the seasons by. Default is "id". Valid values are "id" and other fields present in the NHL API response.
+    - direction (str or list): Direction of sorting. Default is "DESC". Valid values are "ASC" (ascending) and "DESC" (descending).
+    - filter (str or list, optional): The fields to include in the json response. Default is 'None' which returns all fields.
     - input_validation (bool): Flag to enable/disable input validation. Default is True.
 
     Returns:
@@ -232,33 +213,54 @@ def get_seasons(sort="id", direction="DESC", input_validation=True):
     - None: In case of an error.
     """
 
+    # Validate input parameters
     if input_validation:
         # Validate sort parameter
-        if not validate_sort_field(sort, key="seasons"):
-            raise ValueError("(get_seasons) Invalid sort field. Valid sorting fields include strings: id, allStarGameInUse, conferencesInUse, divisionsInUse, endDate, entryDraftInUse, formattedSeasonId, minimumPlayoffMinutesForGoalieStatsLeaders, minimumRegularGamesForGoalieStatsLeaders, nhlStanleyCupOwner, numberOfGames, olympicsParticipation, pointForOTLossInUse, preseasonStartdate, regularSeasonEndDate, rowInUse, seasonOrdinal, startDate, supplementalDraftInUse, tiesInUse, totalPlayoffGames, totalRegularSeasonGames, wildcardInUse.")
-
+        if sort is not None and not validate_sort_field(sort, key="seasons"):
+            raise ValueError("(get_seasons) Invalid sort field. Valid sorting fields include strings: 'id', 'allStarGameInUse', 'conferencesInUse', 'divisionsInUse', 'endDate', 'entryDraftInUse', 'formattedSeasonId', 'minimumPlayoffMinutesForGoalieStatsLeaders', 'minimumRegularGamesForGoalieStatsLeaders', 'nhlStanleyCupOwner', 'numberOfGames', 'olympicsParticipation', 'pointForOTLossInUse', 'preseasonStartdate', 'regularSeasonEndDate', 'rowInUse', 'seasonOrdinal', 'startDate', 'supplementalDraftInUse', 'tiesInUse', 'totalPlayoffGames', 'totalRegularSeasonGames', 'wildcardInUse'.")
+        
         # Validate direction parameter
-        if not validate_sort_direction(direction.upper()):
-            raise ValueError("(get_seasons) Invalid sort direction parameter.  Valid sorting options are ASC and DESC as strings.")
+        if not validate_sort_direction(direction):
+            raise ValueError("(get_seasons) Invalid sort direction parameter.  Valid sorting options are 'ASC' and 'DESC' as strings.")
+
+        # Validate filter parameter
+        if filter is not None and not validate_sort_field(filter, key="seasons"):
+            raise ValueError("(get_seasons) Invalid filter field. Valid fields include strings: 'id', 'allStarGameInUse', 'conferencesInUse', 'divisionsInUse', 'endDate', 'entryDraftInUse', 'formattedSeasonId', 'minimumPlayoffMinutesForGoalieStatsLeaders', 'minimumRegularGamesForGoalieStatsLeaders', 'nhlStanleyCupOwner', 'numberOfGames', 'olympicsParticipation', 'pointForOTLossInUse', 'preseasonStartdate', 'regularSeasonEndDate', 'rowInUse', 'seasonOrdinal', 'startDate', 'supplementalDraftInUse', 'tiesInUse', 'totalPlayoffGames', 'totalRegularSeasonGames', 'wildcardInUse'.")
 
     # Construct URL
-    url = f"https://api.nhle.com/stats/rest/en/season?sort=%5B%7B%22property%22:%22{sort}%22,%22direction%22:%22{direction.upper()}%22%7D%5D"
+    url = f"https://api.nhle.com/stats/rest/en/season?"
 
-    # Make API request using the helper function
-    data = make_api_request(url)
+    # Sorting parameters
+    if sort is not None:
+        # Construct the sort parameters
+        sort_params = construct_sorting_params(sort, direction, input_validation)
+        url += sort_params
+
+    # Filter parameters
+    if filter:
+        if sort is not None:
+            url += "&"
+        if isinstance(filter, str):
+            url += f"include={filter}"
+        elif isinstance(filter, list):
+            url += "&".join([f"include={f}" for f in filter])
+
+    # Make API request
+    data = make_api_request(url, input_validation=input_validation)
 
     if data is None:
         return None
 
     return data
     
-def get_draftrounds(sort="draftYear", direction="DESC", input_validation=True):
+def get_draftrounds(sort="draftYear", direction="DESC", filter=None, input_validation=True):
     """
     Fetch data from the NHL API 'draft' endpoint.
 
     Parameters:
-    - sort (str): Field to sort the draft rounds by. Default is "draftYear".
-    - direction (str): Direction of sorting. Default is "DESC".
+    - sort (str or list, optional): Field to sort the draft rounds by. Default is "draftYear".
+    - direction (str or list): Direction of sorting. Default is "DESC".
+    - filter (str or list, optional): The fields to include in the json response. Default is 'None' which returns all fields.
     - input_validation (bool): Flag to enable/disable input validation. Default is True.
 
     Returns:
@@ -266,36 +268,57 @@ def get_draftrounds(sort="draftYear", direction="DESC", input_validation=True):
     - None: In case of an error.
     """
     
+    # Validate input parameters
     if input_validation:
         # Validate sort parameter
-        if not validate_sort_field(sort, key="draftrounds"):
-            raise ValueError("(get_draftrounds) Invalid sort field. Valid sorting fields include strings: draftYear, id, rounds.")
+        if sort is not None and not validate_sort_field(sort, key="draftrounds"):
+            raise ValueError("(get_draftrounds) Invalid sort field. Valid sorting fields include strings: 'draftYear', 'id', 'rounds'.")
 
         # Validate direction parameter
-        if not validate_sort_direction(direction.upper()):
-            raise ValueError("(get_draftrounds) Invalid sort direction parameter.  Valid sorting options are ASC and DESC as strings.")
+        if not validate_sort_direction(direction):
+            raise ValueError("(get_draftrounds) Invalid sort direction parameter. Valid sorting options are 'ASC' and 'DESC' as strings.")
+
+        # Validate sort parameter
+        if filter is not None and not validate_sort_field(filter, key="draftrounds"):
+            raise ValueError("(get_draftrounds) Invalid filter field. Valid fields include strings: 'draftYear', 'id', 'rounds'.")
 
     # URL for the 'draft' endpoint with sort and direction parameters
-    url = f"https://api.nhle.com/stats/rest/en/draft?sort=%5B%7B%22property%22:%22{sort}%22,%22direction%22:%22{direction}%22%7D%5D"
+    url = f"https://api.nhle.com/stats/rest/en/draft?"
 
-    # Make API request using the helper function
-    data = make_api_request(url)
+    # Sorting parameters
+    if sort is not None:
+        # Construct the sort parameters
+        sort_params = construct_sorting_params(sort, direction, input_validation)
+        url += sort_params
+    
+    # Filter parameters
+    if filter:
+        if sort is not None:
+            url += "&"
+        if isinstance(filter, str):
+            url += f"include={filter}"
+        elif isinstance(filter, list):
+            url += "&".join([f"include={f}" for f in filter])
+
+    # Make API request
+    data = make_api_request(url, input_validation=input_validation)
 
     if data is None:
         return None
 
     return data
 
-def get_roster(team_code, season, sort="lastName", direction="ASC", input_validation=True):
+def get_roster(team_code, season, sort=None, direction=None, filter=None, input_validation=True):
     """
     Fetch data from the NHL API 'team roster' endpoint.
 
     Parameters:
-    - team_code (str): The abbreviated code of the team, (ex. "TOR").
-    - season (str): The season in the format of "20232024".
-    - sort (str): Field to sort the roster by. Default is "lastName".
-    - direction (str): Direction of sorting. Default is "ASC".
-    - input_validation (bool): Flag to enable/disable input validation. Default is True.
+    - team_code (str): The abbreviated code of the team, (ex. 'TOR').
+    - season (str): The season in the format of '20232024'.
+    - sort (str or list, optional): Field to sort the roster by. Default is 'None'. Note: does nothing.
+    - direction (str or list, optional): Direction of sorting. Default is 'ASC'. Note: does nothing.
+    - filter (str or list, optional): The fields to include in the json response. Default is 'None' which returns all fields. Note: does nothing.
+    - input_validation (bool): Flag to enable/disable input validation. Default is 'True'.
 
     Returns:
     - dict: Player roster data as a json dictionary.
@@ -312,26 +335,41 @@ def get_roster(team_code, season, sort="lastName", direction="ASC", input_valida
             raise ValueError("(get_roster) Invalid season.")
 
         # Validate sort parameter
-        valid_sort_fields = ["draftYear", "id", "rounds"]
-        if not validate_sort_field(sort, key="roster"):
-            raise ValueError(f"(get_roster) Invalid sort field. Valid sorting fields include: {', '.join(valid_sort_fields)}.")
+        if sort is not None and not validate_sort_field(sort, key="roster"):
+            raise ValueError(f"(get_roster) Invalid sort field. Valid sorting fields include: 'id', 'firstName', 'lastName', 'sweaterNumber', 'positionCode', 'shootsCatches', 'heightInInches', 'heighInCentimeters', 'weightInPounds', 'weightInKilograms', 'birthDate', 'birthCity', 'birthCountry', 'birthStateProvince'.")
 
         # Validate direction parameter
-        if not validate_sort_direction(direction.upper()):
+        if direction is not None and not validate_sort_direction(direction):
             raise ValueError("(get_roster) Invalid sort direction parameter.  Valid sorting options are ASC and DESC as strings.")
 
     # Construct the URL for the 'roster' endpoint with sort and direction parameters
     base_url = "https://api-web.nhle.com/v1/roster/"
-    url = f"{base_url}{team_code}/{season}?sort=%5B%7B%22property%22:%22{sort}%22,%22direction%22:%22{direction.upper()}%22%7D%5D"
+    url = f"{base_url}{team_code}/{season}?"
 
-    # Make API request using the helper function
-    data = make_api_request(url)
+    # Sorting parameters
+    if sort is not None:
+        # Construct the sort parameters
+        sort_params = construct_sorting_params(sort, direction, input_validation)
+        url += sort_params
+
+    # Filter parameters
+    if filter:
+        if sort is not None:
+            url += "&"
+        if isinstance(filter, str):
+            url += f"include={filter}"
+        elif isinstance(filter, list):
+            url += "&".join([f"include={f}" for f in filter])
+
+    # Make API request
+    data = make_api_request(url, input_validation=input_validation)
 
     if data is None:
         return None
 
     return data
-   
+
+#TODO add filter and sort parameters if they work 
 def get_roster_seasons(team_code, input_validation=True):
     """
     Fetch data from the NHL API 'team roster-season' endpoint.
@@ -355,13 +393,14 @@ def get_roster_seasons(team_code, input_validation=True):
     url = f"{base_url}{team_code}"
 
     # Make API request using the helper function
-    data = make_api_request(url)
+    data = make_api_request(url, input_validation=input_validation)
 
     if data is None:
         return None
 
     return data
 
+#TODO add filter and sort parameters if they work
 def get_player_landing(player_id, view=None, input_validation=True):
     """
     Fetch data from the NHL API 'player/landing' endpoint.
@@ -402,7 +441,8 @@ def get_player_landing(player_id, view=None, input_validation=True):
         return filtered_data
 
     return data
-    
+
+#TODO add filter and sort parameters if they work   
 def get_player_gamelog(player_id, season, game_type=2, view="gameLog", input_validation=True):
     """
     Fetch data from the NHL API player 'gamelog' endpoint.
@@ -453,6 +493,7 @@ def get_player_gamelog(player_id, season, game_type=2, view="gameLog", input_val
 
     return data
 
+#TODO make it work for a range of games (isGame True)
 #TODO fill out factCayenneExp, add in functionality for game range, improve input validation
 def get_skaters_stats(season, report="summary", aggregate=True, min_gp=0, max_gp=None, sort=["points", "goals", "assists", "playerId"], sort_direction=["DESC", "DESC", "DESC", "ASC"], game_type=2, start_season=None, end_season=None, franchise_id=None, opponent_franchise_id=None, position=None, skater_full_name=None, is_rookie=None, is_active=None, is_in_hall_of_fame=None, nationality_code=None, birth_state_province_code=None, home_or_road=None, game_result=None, draft_round=None, draft_year=None, shoots=None, skater_limit=100, input_validation=True):
     """
@@ -562,7 +603,7 @@ def get_skaters_stats(season, report="summary", aggregate=True, min_gp=0, max_gp
             raise ValueError("Invalid is_active. Must be a boolean.")
         
         # Validate is_in_hall_of_fame
-        if is_active is not None and not validate_boolean(is_in_hall_of_fame):
+        if is_in_hall_of_fame is not None and not validate_boolean(is_in_hall_of_fame):
             raise ValueError("Invalid is_in_hall_of_fame. Must be a boolean.")
         
         # Validate the skater_full_name if provided
@@ -702,6 +743,7 @@ def get_skaters_stats(season, report="summary", aggregate=True, min_gp=0, max_gp
 
     return all_skaters_data
 
+#TODO add filter parameter
 def get_schedule_calendar(date="now", input_validation=True):
     """
     Fetches schedule calendar data from the NHL API for a specific date.
@@ -739,6 +781,7 @@ def get_schedule_calendar(date="now", input_validation=True):
         # Raise a ValueError if there's an issue with the request
         raise ValueError(f"Error fetching data: {e}")
 
+#TODO add filter parameter
 def get_schedule(date="now", input_validation=True):
     """
     Fetches schedule data from the NHL API for a specific date.
@@ -772,7 +815,8 @@ def get_schedule(date="now", input_validation=True):
     except Exception as e:
         raise ValueError(f"Error fetching data: {e}")
 
-def get_nhl_standings(date="now", input_validation=True):
+#TODO add filter parameter
+def get_standings(date="now", input_validation=True):
     """
     Fetches NHL standings data for a specific date or today's date.
 
@@ -804,6 +848,7 @@ def get_nhl_standings(date="now", input_validation=True):
     except Exception as e:
         raise ValueError(f"Error fetching standings data: {e}")
 
+#TODO add filter parameter
 def get_standings_seasons(): #TODO add sorting and views
     """
     Fetch data from the NHL API 'standings-season' endpoint.
@@ -824,6 +869,7 @@ def get_standings_seasons(): #TODO add sorting and views
 
     return data
 
+#TODO add filter parameter
 def get_scores(date="now", input_validation=True):
     """
     Fetches NHL scores data for a specific date or today's date.
@@ -856,6 +902,7 @@ def get_scores(date="now", input_validation=True):
     except Exception as e:
         raise ValueError(f"Error fetching scores data: {e}")
 
+#TODO add filter parameter
 def get_playbyplay(game_id, view=None, input_validation=True):
     """
     Fetch data from the NHL API player 'play-by-play' endpoint.
@@ -902,6 +949,7 @@ def get_playbyplay(game_id, view=None, input_validation=True):
         # Raise a ValueError if there's an issue with the validation
         raise ValueError(str(e))
     
+#TODO add filter parameter
 def get_boxscore(game_id, view=None, input_validation=True):
     """
     Fetch data from the NHL API player 'boxscore' endpoint.
@@ -948,6 +996,7 @@ def get_boxscore(game_id, view=None, input_validation=True):
         # Raise a ValueError if there's an issue with the validation
         raise ValueError(str(e))
 
+#TODO add filter parameter
 def get_shifts(game_id, sort=None, direction=None, input_validation=True):
     """
     Fetch data from the NHL API player 'shiftcharts' endpoint.
@@ -997,17 +1046,18 @@ def get_shifts(game_id, sort=None, direction=None, input_validation=True):
         # Raise a ValueError if there's an issue with the validation
         raise ValueError(str(e))
 
+#TODO add filter parameter
 def get_team_information():
     """
-    Combine data from 'franchises', 'nhl_standings_today', and 'nhl_schedule_calendar' endpoints.
+    Combine data from 'franchises', 'standings', and 'schedule_calendar' endpoints.
 
     Returns:
-    - dict: Team information combining data from 'franchises', 'nhl_standings_today', and 'nhl_schedule_calendar'.
+    - dict: Team information combining data from 'franchises', 'standings, and 'schedule_calendar'.
     """
 
     # Get data from endpoints
     franchises_data = get_franchises()
-    nhl_standings_data = get_nhl_standings()
+    nhl_standings_data = get_standings()
     nhl_schedule_calendar = get_schedule_calendar()
 
     # Check if any of the required data is missing
@@ -1063,6 +1113,7 @@ def get_team_information():
 
     return team_info
 
+#TODO add filter parameter
 def get_club_stats_seasons(team_code, input_validation=True):
     """
     Fetch data from the NHL API 'team roster' endpoint.
@@ -1093,6 +1144,7 @@ def get_club_stats_seasons(team_code, input_validation=True):
 
     return data
 
+#TODO add filter parameter
 def get_club_schedule_week(team_code, date="now", input_validation=True):
     """
     Fetches schedule data from the NHL API for a specific date.
@@ -1132,6 +1184,7 @@ def get_club_schedule_week(team_code, date="now", input_validation=True):
     except Exception as e:
         raise ValueError(f"Error fetching data: {e}")
 
+#TODO add filter parameter
 def get_club_schedule_month(team_code, date="now", input_validation=True):
     """
     Fetches schedule data from the NHL API for a specific date.
@@ -1176,7 +1229,82 @@ def get_club_schedule_month(team_code, date="now", input_validation=True):
 
 
 #####################################################################################################################################################
-# Input validation for the various NHL API functions #########################################################################################
+# Helper functions for the various NHL API scraper functions ########################################################################################
+#####################################################################################################################################################
+
+def make_api_request(url, timeout=10, retries=3, input_validation=True):
+    """
+    Make a request to the API and handle retries and error conditions.
+
+    Parameters:
+    - url (str): The URL to make the API request to.
+    - timeout (int): The timeout duration for the request in seconds. Default is 10.
+    - retries (int): The number of retry attempts in case of failure. Default is 3.
+    - input_validation (bool): Flag to enable/disable input validation. Default is True.
+
+    Returns:
+    - dict or None: The JSON response from the API or None in case of error.
+    """
+    # Input validation
+    if input_validation:
+        # Validate URL parameter
+        if not isinstance(url, str):
+            raise ValueError("(make_api_request) Invalid url, parameter must be a string.")
+
+        # Validate timeout parameter
+        if not isinstance(timeout, int):
+            raise ValueError("(make_api_request) Invalid timeout, parameter must be an integer.")
+
+        # Validate retries parameter
+        if not isinstance(retries, int):
+            raise ValueError("(make_api_request) Invalid retries, parameter must be an integer.")
+
+    for attempt in range(retries):
+        try:
+            response = requests.get(url, timeout=timeout)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            if attempt < retries - 1:
+                delay = (2 ** attempt) * 0.5  # Exponential backoff
+                time.sleep(delay)
+            else:
+                return None
+        except Exception as e:
+            return None
+
+def construct_sorting_params(sort, direction, input_validation=True):
+    """
+    Construct sorting parameters for the API URL.
+
+    Parameters:
+    - sort (str or list): Field(s) to sort by.
+    - direction (str or list): Sort direction(s) ('ASC' or 'DESC').
+    - input_validation (bool): Flag to enable/disable input validation for sort and direction. Default is True.
+
+    Returns:
+    - str: Sorting parameters as an f-string.
+    """
+    if input_validation:
+        # Validate input types
+        if not isinstance(sort, (str, list)):
+            raise ValueError("Invalid input type for sort parameter. Must be a string or a list.")
+        if not isinstance(direction, (str, list)):
+            raise ValueError("Invalid input type for direction parameter. Must be a string or a list.")
+
+    # Convert sort and direction to lists if they are not already
+    sort = sort if isinstance(sort, list) else [sort]
+    direction = direction if isinstance(direction, list) else [direction]
+
+    # Construct the sort parameters
+    sort_params = [{"property": field, "direction": dir} for field, dir in zip(sort, direction)]
+    sort_json = json.dumps(sort_params)
+
+    return f"sort={sort_json}"
+
+
+#####################################################################################################################################################
+# Input validation for the various NHL API functions ################################################################################################
 #####################################################################################################################################################
 
 def validate_team_code(team_code, team_info=None):
@@ -1215,11 +1343,12 @@ def validate_sort_field(sort_field, key=None):
     """
     # Define valid sort fields based on the key
     valid_sort_fields = {
+        "cofig": ["playerReportData", "goalieReportData", "teamReportData", "aggregatedColumns", "individualColumns"],
         "countries": ["id", "country3Code", "countryCode", "countryName", "hasPlayerStats", "imageUrl", "iocCode", "isActive", "nationalityName", "olympicUrl", "thumbnailUrl"], 
         "franchises": ["fullName", "teamCommonName", "teamPlaceName", "id"], 
         "seasons": ["id", "allStarGameInUse", "conferencesInUse", "divisionsInUse", "endDate", "entryDraftInUse", "formattedSeasonId", "minimumPlayoffMinutesForGoalieStatsLeaders", "minimumRegularGamesForGoalieStatsLeaders", "nhlStanleyCupOwner", "numberOfGames", "olympicsParticipation", "pointForOTLossInUse", "preseasonStartdate", "regularSeasonEndDate", "rowInUse", "seasonOrdinal", "startDate", "supplementalDraftInUse", "tiesInUse", "totalPlayoffGames", "totalRegularSeasonGames", "wildcardInUse"],
         "draftrounds": ["draftYear", "id", "rounds"],
-        "roster": ["lastName", "firstName"], # need to add the rest of the fields, also for players_stats
+        "roster": ["lastName", "firstName", "id", "firstName", "lastName", "sweaterNumber", "positionCode", "shootsCatches", "heightInInches", "heighInCentimeters", "weightInPounds", "weightInKilograms", "birthDate", "birthCity", "birthCountry", "birthStateProvince"], # need to add the rest of the fields, also for players_stats
         "skaters_stats": ["points", "evPoints", "goals", "evGoals", "otGoals", "gameWinningGoals", "assists", "playerId", "gamesPlayed", "faceoffWinPct", "penaltyMinutes"],
         "shifts": [None, "id"], #add the rest
         "reports": ["summary", "bios", "faceoffpercentages", "faceoffwins", "goalsForAgainst"] #need to add the rest
