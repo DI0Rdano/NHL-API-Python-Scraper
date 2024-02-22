@@ -26,7 +26,7 @@ def get_config(view=None):
     Fetch data from the NHL API 'config' endpoint.
 
     Parameters:
-    - view (str, optional): The part of the JSON to return. Default is None (returns everything).
+    - view (str, optional): The part of the JSON to return, use '.' as a delimiter for subfields. Default is None (returns everything).
 
     Returns:
     - dict: Configuration data as a JSON dictionary based on the specified view.
@@ -44,9 +44,15 @@ def get_config(view=None):
 
     # Filter the response based on the view parameter
     if view is not None:
-        filtered_data = data.get(view)
-        if filtered_data is None:
-            raise ValueError("Invalid view parameter. Allowed values are playerReportData, goalieReportData, teamReportData, aggregatedColumns, individualColumns, and None.")
+        # Split the view string by "." to handle nested fields
+        fields = view.split(".")
+        filtered_data = data
+        for field in fields:
+            # Check if the current field exists in the filtered data
+            if isinstance(filtered_data, dict) and field in filtered_data:
+                filtered_data = filtered_data[field]
+            else:
+                raise ValueError(f"Invalid view parameter. Field '{field}' not found or not a valid subfield.")
         return filtered_data
 
     return data
@@ -428,7 +434,7 @@ def get_player_landing(player_id, view=None, input_validation=True):
 
     Parameters:
     - player_id (int): The ID of the player.
-    - view (str): The part of the json to return. Default is None (to return everything).
+    - view (str): The part of the json to return, use '.' as a delimiter for subfields. Default is None (to return everything).
     - input_validation (bool): Flag to enable/disable input validation. Default is True.
 
     Returns:
@@ -456,9 +462,15 @@ def get_player_landing(player_id, view=None, input_validation=True):
 
     # Filter the response based on the view parameter
     if view is not None:
-        filtered_data = data.get(view)
-        if filtered_data is None:
-            raise ValueError("Invalid view parameter. Allowed values are featuredStats, careerTotals, seasonTotals, last5Games, awards, currentTeamRoster, and None.")
+        # Split the view string by "." to handle nested fields
+        fields = view.split(".")
+        filtered_data = data
+        for field in fields:
+            # Check if the current field exists in the filtered data
+            if isinstance(filtered_data, dict) and field in filtered_data:
+                filtered_data = filtered_data[field]
+            else:
+                raise ValueError(f"Invalid view parameter. Field '{field}' not found or not a valid subfield.")
         return filtered_data
 
     return data
@@ -471,7 +483,7 @@ def get_player_gamelog(player_id, season, game_type=2, view="gameLog", input_val
     - player_id (int): The ID of the player.
     - season (str): The season to return the gamelog from, (ex. '20232024').
     - game_type (int): The type of game (2 for regular season, 3 for playoffs). Default is 2.
-    - view (str): The part of the json to return. Default is "gameLog". Allowed values are "gameLog", "playerStatsSeasons", and None (to return everything).
+    - view (str): The part of the json to return, use '.' as a delimiter for subfields. Default is None (to return everything).
     - input_validation (bool): Flag to enable/disable input validation. Default is True.
 
     Returns:
@@ -506,9 +518,15 @@ def get_player_gamelog(player_id, season, game_type=2, view="gameLog", input_val
     
     # Filter the response based on the view parameter
     if view is not None:
-        filtered_data = data.get(view)
-        if filtered_data is None:
-            raise ValueError("Invalid view parameter. Allowed values are 'gameLog', 'playerStatsSeasons', None.")
+        # Split the view string by "." to handle nested fields
+        fields = view.split(".")
+        filtered_data = data
+        for field in fields:
+            # Check if the current field exists in the filtered data
+            if isinstance(filtered_data, dict) and field in filtered_data:
+                filtered_data = filtered_data[field]
+            else:
+                raise ValueError(f"Invalid view parameter. Field '{field}' not found or not a valid subfield.")
         return filtered_data
 
     return data
@@ -589,7 +607,7 @@ def get_skaters_stats(season=None, report="summary", aggregate=True, min_gp=0, m
             raise ValueError("Invalid sort_direction.")
 
         # Validate the game type parameter
-        if game_type is not None and not (1 <= game_type <= 4):
+        if game_type is not None and not validate_game_type(game_type):
             raise ValueError("Invalid game_type. Must be an integer from 1 to 4.")
 
         # Validate start_season and end_season if provided
@@ -608,13 +626,8 @@ def get_skaters_stats(season=None, report="summary", aggregate=True, min_gp=0, m
             raise ValueError("Invalid opponent_franchise_id.  Must be an integer.")
         
         # Validate position if provided
-        if position is not None:
-            if isinstance(position, str):
-                if position not in ["C", "L", "R", "D"]:
-                    raise ValueError("Invalid position. Must be one of 'C', 'L', 'R', 'D'.")
-            elif isinstance(position, list):
-                if not all(pos in ["C", "L", "R", "D"] for pos in position):
-                    raise ValueError("Invalid position list. Must contain only 'C', 'L', 'R', 'D'.")
+        if position is not None and not validate_position(position):
+            raise ValueError("Invalid position. Valid positions are 'C', 'L', 'R', and 'D'.")
 
         # Validate the skater_full_name if provided
         if skater_full_name is not None and not validate_string(skater_full_name):
@@ -628,38 +641,37 @@ def get_skaters_stats(season=None, report="summary", aggregate=True, min_gp=0, m
         if not validate_integer(skater_limit):
             raise ValueError("Invalid skater_limit. Must be an integer.")
         
-        # Validate is_active
+        # Validate is_active if provided
         if is_active is not None and not validate_boolean(is_active):
             raise ValueError("Invalid is_active. Must be a boolean.")
         
-        # Validate is_in_hall_of_fame
+        # Validate is_in_hall_of_fame if provided
         if is_in_hall_of_fame is not None and not validate_boolean(is_in_hall_of_fame):
             raise ValueError("Invalid is_in_hall_of_fame. Must be a boolean.")
         
-        # Validate the skater_full_name if provided
+        # Validate skater_full_name if provided
         if nationality_code is not None and not validate_string(nationality_code):
             raise ValueError("Invalid nationality_code. Must be a string.")
         
-        # Validate the skater_full_name if provided
+        # Validate birth_state_province_code if provided
         if birth_state_province_code is not None and not validate_string(birth_state_province_code):
             raise ValueError("Invalid birth_state_province_code. Must be a string.")
         
-        # Validate the home_or_road if provided
+        # Validate home_or_road if provided
         if home_or_road is not None and not validate_string(home_or_road):
             raise ValueError("Invalid home_or_road. Must be a string.")
         
-        # Validate the home_or_road if provided
+        # Validate game_result if provided
         if game_result is not None and not validate_string(game_result):
             raise ValueError("Invalid game_result. Must be a string.")
         
-        if not validate_boolean(input_validation):
-            raise ValueError("Invalid input_validation. Must be a boolean ('True' or 'False').")
+        # Validate draft_round if provided
+        if draft_round is not None and not validate_draft_round(draft_round):
+            raise ValueError("Invalid draft_round.")
         
-        if draft_round is not None and not validate_integer(draft_round):
-            raise ValueError("Invalid draft_round. Must be an integer.")
-        
-        if draft_year is not None and not validate_string(draft_year):
-            raise ValueError("Invalid draft_year. Must be a string.")
+        # Validate draft_year if provided
+        if draft_year is not None and not validate_draft_year(draft_year):
+            raise ValueError("Invalid draft_year.")
         
         if shoots is not None and not validate_string(shoots):
             raise ValueError("Invalid shoots. Must be a string ('L' or 'R').")
@@ -670,7 +682,7 @@ def get_skaters_stats(season=None, report="summary", aggregate=True, min_gp=0, m
         if end_date is not None and not validate_string(end_date):
             raise ValueError("Invalid end_date. Must be a string.")
         
-        if  not validate_boolean(is_game):
+        if not validate_boolean(is_game):
             raise ValueError("Invalid is_game. Must be a boolean.")
 
     # Construct the URL for the 'skater' endpoint
@@ -862,7 +874,7 @@ def get_teams_stats(season=None, report="summary", aggregate=True, min_gp=0, max
             raise ValueError("Invalid sort_direction.")
 
         # Validate the game type parameter
-        if game_type is not None and not (1 <= game_type <= 4):
+        if game_type is not None and not validate_game_type(game_type):
             raise ValueError("Invalid game_type. Must be an integer from 1 to 4.")
 
         # Validate start_season and end_season if provided
@@ -1153,8 +1165,7 @@ def get_playbyplay(game_id, view=None, input_validation=True):
 
     Parameters:
     - game_id (int): The ID of the game.
-    - view (str, optional): The part of the JSON to return. Default is None (returns everything).
-                            Allowed values are "plays", "rosterSpots", "homeTeam", "awayTeam" to return specific parts of the JSON.
+    - view (str): The part of the json to return, use '.' as a delimiter for subfields. Default is None (to return everything).
     - input_validation (bool): Flag to enable/disable input validation. Default is True.
 
     Returns:
@@ -1182,9 +1193,15 @@ def get_playbyplay(game_id, view=None, input_validation=True):
 
         # Filter the response based on the view parameter
         if view is not None:
-            filtered_data = data.get(view)
-            if filtered_data is None:
-                raise ValueError("Invalid view parameter. Allowed values are plays, rosterSpots, homeTeam, awayTeam, and None.")
+            # Split the view string by "." to handle nested fields
+            fields = view.split(".")
+            filtered_data = data
+            for field in fields:
+                # Check if the current field exists in the filtered data
+                if isinstance(filtered_data, dict) and field in filtered_data:
+                    filtered_data = filtered_data[field]
+                else:
+                    raise ValueError(f"Invalid view parameter. Field '{field}' not found or not a valid subfield.")
             return filtered_data
 
         return data
@@ -1199,8 +1216,7 @@ def get_boxscore(game_id, view=None, input_validation=True):
 
     Parameters:
     - game_id (int): The ID of the game.
-    - view (str, optional): The part of the JSON to return. Default is None (returns everything).
-                            Allowed values are "boxscore", "homeTeam", "awayTeam" to return specific parts of the JSON.
+    - view (str): The part of the json to return, use '.' as a delimiter for subfields. Default is None (to return everything).
     - input_validation (bool): Flag to enable/disable input validation. Default is True.
 
     Returns:
@@ -1228,9 +1244,15 @@ def get_boxscore(game_id, view=None, input_validation=True):
 
         # Filter the response based on the view parameter
         if view is not None:
-            filtered_data = data.get(view)
-            if filtered_data is None:
-                raise ValueError("Invalid view parameter. Allowed values are boxscore, awayTeam, homeTeam, and None.")
+            # Split the view string by "." to handle nested fields
+            fields = view.split(".")
+            filtered_data = data
+            for field in fields:
+                # Check if the current field exists in the filtered data
+                if isinstance(filtered_data, dict) and field in filtered_data:
+                    filtered_data = filtered_data[field]
+                else:
+                    raise ValueError(f"Invalid view parameter. Field '{field}' not found or not a valid subfield.")
             return filtered_data
 
         return data
@@ -1239,7 +1261,7 @@ def get_boxscore(game_id, view=None, input_validation=True):
         # Raise a ValueError if there's an issue with the validation
         raise ValueError(str(e))
 
-def get_shifts(game_id, sort=None, direction=None, input_validation=True):
+def get_shifts(game_id, sort=None, direction=None, view=None, input_validation=True):
     """
     Fetch data from the NHL API player 'shiftcharts' endpoint.
 
@@ -1247,6 +1269,7 @@ def get_shifts(game_id, sort=None, direction=None, input_validation=True):
     - game_id (int): The ID of the game.
     - sort (str, optional): The field to sort the data by. Default is None.
     - direction (str, optional): The sorting direction. Default is None.
+    - view (str): The part of the json to return, use '.' as a delimiter for subfields. Default is None (to return everything).
     - input_validation (bool): Flag to enable/disable input validation. Default is True.
 
     Returns:
@@ -1281,6 +1304,19 @@ def get_shifts(game_id, sort=None, direction=None, input_validation=True):
 
         if data is None:
             return None
+
+        # Filter the response based on the view parameter
+        if view is not None:
+            # Split the view string by "." to handle nested fields
+            fields = view.split(".")
+            filtered_data = data
+            for field in fields:
+                # Check if the current field exists in the filtered data
+                if isinstance(filtered_data, dict) and field in filtered_data:
+                    filtered_data = filtered_data[field]
+                else:
+                    raise ValueError(f"Invalid view parameter. Field '{field}' not found or not a valid subfield.")
+            return filtered_data
 
         return data
 
@@ -1384,13 +1420,15 @@ def get_club_stats_seasons(team_code, input_validation=True):
 
     return data
 
-def get_club_schedule_week(team_code, date="now", input_validation=True):
+def get_club_schedule(team_code, period="month", date="now", view=None, input_validation=True):
     """
     Fetches schedule data from the NHL API for a specific date.
 
     Parameters:
     - date (str, optional): The date for which to fetch the schedule data (in 'YYYY-MM-DD' format). Default is "now".
+    - period (str, optional): The period to fetch the schedule data for ('month' or 'week'). Default is 'month'.
     - team_code (str): The abbreviated code of the team, (ex. "TOR").
+    - view (str): The part of the json to return, use '.' as a delimiter for subfields. Default is None (to return everything).
     - input_validation (bool): Flag to enable/disable input validation. Default is True.
 
     Returns:
@@ -1401,63 +1439,47 @@ def get_club_schedule_week(team_code, date="now", input_validation=True):
     if input_validation:
         # Validate team_code parameter
         if not validate_team_code(team_code):
-            raise ValueError("(get_roster_season) Invalid team code.")
+            raise ValueError("(get_club_schedule) Invalid team code.")
+        
+        # Validate the period parameter
+        if period.lower() != "month" and period.lower() != "week":
+            raise ValueError("(get_club_schedule) Invalid period. Valid periods are 'month' and 'week'.")
 
     if date != "now" and input_validation:
         # Validate date parameter and format if valid
-        formatted_date = format_date(date)
-        if not formatted_date:
-            raise ValueError("Invalid date format. Please provide the date in 'YYYY-MM-DD' format.")
+        if period.lower() == "month":
+            formatted_date = format_month(date)
+            if not formatted_date:
+                raise ValueError("(get_club_schedule) Invalid date format. Please provide the date in 'YYYY-MM-DD' format.")
+        if period.lower() == "week":
+            formatted_date = format_date(date)
+            if not formatted_date:
+                raise ValueError("(get_club_schedule) Invalid date format. Please provide the date in 'YYYY-MM-DD' format.")
     else:
         formatted_date = date
 
     base_url = "https://api-web.nhle.com/v1/club-schedule/"
     if formatted_date == "now":
-        url = f"{base_url}{team_code}/week/now"
+        url = f"{base_url}{team_code}/{period.lower()}/now"
     else:
-        url = f"{base_url}{team_code}/week/{formatted_date}"
+        url = f"{base_url}{team_code}/{period.lower()}/{formatted_date}"
 
     try:
         roster_data = make_api_request(url)
-        return roster_data
-    except Exception as e:
-        raise ValueError(f"Error fetching data: {e}")
 
-def get_club_schedule_month(team_code, date="now", input_validation=True):
-    """
-    Fetches schedule data from the NHL API for a specific date.
+        # Filter the response based on the view parameter
+        if view is not None:
+            # Split the view string by "." to handle nested fields
+            fields = view.split(".")
+            filtered_data = roster_data
+            for field in fields:
+                # Check if the current field exists in the filtered data
+                if isinstance(filtered_data, dict) and field in filtered_data:
+                    filtered_data = filtered_data[field]
+                else:
+                    raise ValueError(f"Invalid view parameter. Field '{field}' not found or not a valid subfield.")
+            return filtered_data
 
-    Parameters:
-    - date (str, optional): The date for which to fetch the schedule data (in 'YYYY-MM-DD' format). Default is "now".
-    - team_code (str): The abbreviated code of the team, (ex. "TOR").
-    - input_validation (bool): Flag to enable/disable input validation. Default is True.
-
-    Returns:
-    - dict: Schedule data as a JSON dictionary.
-    - None: If there is an error fetching the data.
-    """
-
-    if input_validation:
-        # Validate team_code parameter
-        if not validate_team_code(team_code):
-            raise ValueError("(get_roster_season) Invalid team code.")
-
-    if date != "now" and input_validation:
-        # Validate date parameter and format if valid
-        formatted_date = format_month(date)
-        if not formatted_date:
-            raise ValueError("Invalid date format. Please provide the date in 'YYYY-MM-DD' format.")
-    else:
-        formatted_date = date
-
-    base_url = "https://api-web.nhle.com/v1/club-schedule/"
-    if formatted_date == "now":
-        url = f"{base_url}{team_code}/month/now"
-    else:
-        url = f"{base_url}{team_code}/month/{formatted_date}"
-
-    try:
-        roster_data = make_api_request(url)
         return roster_data
     except Exception as e:
         raise ValueError(f"Error fetching data: {e}")
@@ -1695,6 +1717,56 @@ def validate_season(season, seasons_info=None, team_info=None, team_code=None):
     # Otherwise, the season is valid
     return True
 
+def validate_draft_round(draft_round, draftrounds=None):
+    """
+    Validate the draft round.
+
+    Parameters:
+    - draft_round (str): The round to validate.
+    - draftrounds (dict, optional): Dictionary containing information about available draft rounds. Default is None.
+
+    Returns:
+    - bool: True if the round within the available rounds, False otherwise.
+    """
+    if draftrounds is None:
+        # Call get_draftrounds function to retrieve draft rounds
+        draftrounds = get_draftrounds()
+
+    if draftrounds is None:
+        return False  # Unable to retrieve draft rounds
+    
+    # Check if the season is within the available seasons
+    available_draftrounds = [str(draftrounds.get("rounds")) for draftrounds in draftrounds.get("data", [])]
+    if str(draft_round) not in available_draftrounds:
+        return False
+    
+    return True
+
+def validate_draft_year(draft_year, draftyears=None):
+    """
+    Validate the draft year.
+
+    Parameters:
+    - draft_year (str): The year to validate.
+    - draftyears (dict, optional): Dictionary containing information about available draft rounds. Default is None.
+
+    Returns:
+    - bool: True if the year is within the available years, False otherwise.
+    """
+    if draftyears is None:
+        # Call get_draftrounds function to retrieve draft rounds
+        draftyears = get_draftrounds()
+
+    if draftyears is None:
+        return False  # Unable to retrieve draft rounds
+    
+    # Check if the season is within the available seasons
+    available_draftyears = [str(draftyears.get("draftYear")) for draftyears in draftyears.get("data", [])]
+    if str(draft_year) not in available_draftyears:
+        return False
+    
+    return True
+    
 def validate_string(string):
     """
     Validate a string input.
@@ -1777,6 +1849,52 @@ def validate_id(id):
         return int_value > 0
     except ValueError:
         return False
+
+def validate_game_type(game_type):
+    """
+    Validate an integer input and ensure it is between 1 and 4.
+
+    Parameters:
+    - game_type (any): The input value to validate.
+
+    Returns:
+    - bool: True if the input is valid, False otherwise.
+    """
+    try:
+        # Attempt to convert the input to an integer
+        int_value = int(game_type)
+        # Check if the integer is between 1 and 4.
+        if (1 <= int_value <= 4):
+            return True
+    except ValueError:
+        return False
+
+def validate_position(position):
+    """
+    Validate input is 'C', 'L', 'R', or 'D'.
+
+    Parameters:
+    - position (str or list): The input value to validate.
+
+    Returns:
+    - bool: True if the input is valid, False otherwise.
+    """
+    try:
+        # Check if the input is valid
+        if isinstance(position, str):
+            if position not in ["C", "L", "R", "D"]:
+                return False
+            else:
+                return True
+        elif isinstance(position, list):
+            if not all(pos in ["C", "L", "R", "D"] for pos in position):
+                return False
+            else:
+                return True
+    except ValueError:
+        return False
+
+            
 
 def format_date(date_string):
     try:
