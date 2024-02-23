@@ -58,63 +58,65 @@ Constructed for personal use, not intended to be comprehensive. </br>
 
 ## Base URLs & Endpoints
 
->### `https://api.nhle.com/stats/rest/en` </br>
->
->General Endpoints:
->- `/config`
->- `/country`
->- `/franchise`
->- `/season`
-></br>
+### `https://api.nhle.com/stats/rest/en` </br>
+
+General Endpoints:
+- `/config`
+- `/country`
+- `/franchise`
+- `/season`
+</br>
 </br>
 
->### `https://api-web.nhle.com/v1` </br>
->
->Player Endpoints:
->- `/player/{playerId}`
->    - `/landing`
->    - `/game-log/{season}/{gameType}`
->
->Club Endpoints:
->- `/club-schedule/{teamAbbrev}`
->    - `/month`
->        - `/now`
->        - `/{date}`
->    - `/week`
->        - `/now`
->        - `/{date}`
->- `/club-stats-season/{teamAbbrev}`
->
->Roster Endpoints:
->- `/roster-season/{teamAbbrev}`
->- `/roster/{teamAbbrev}/{season}`
->
->Gamecenter Endpoints:
->- `/gamecenter/{gameId}`
->    - `/play-by-play`
->    - `/boxscore`
->
->Score Endpoints:
->- `/score`
->    - `/now`
->    - `/{date}`
->
->Schedule Endpoints:
->- `/schedule`
->    - `/now`
->    - `/{date}`
->- `/schedule-calendar`
->    - `/now`
->    - `/{date}`
->
->Standings Endpoints:
->- `/standings`
->- `/standings-season`
->- `/standings`
->    - `/now`
->    - `/{date}`
-></br>
+### `https://api-web.nhle.com/v1` </br>
+
+Player Endpoints:
+- `/player/{playerId}`
+    - `/landing`
+    - `/game-log/{season}/{gameType}`
+
+Club Endpoints:
+- `/club-schedule/{teamAbbrev}`
+    - `/month`
+        - `/now`
+        - `/{date}`
+    - `/week`
+        - `/now`
+        - `/{date}`
+- `/club-stats-season/{teamAbbrev}`
+
+Roster Endpoints:
+- `/roster-season/{teamAbbrev}`
+- `/roster/{teamAbbrev}/{season}`
+
+Gamecenter Endpoints:
+- `/gamecenter/{gameId}`
+    - `/play-by-play`
+    - `/boxscore`
+
+Score Endpoints:
+- `/score`
+    - `/now`
+    - `/{date}`
+
+Schedule Endpoints:
+- `/schedule`
+    - `/now`
+    - `/{date}`
+- `/schedule-calendar`
+    - `/now`
+    - `/{date}`
+
+Standings Endpoints:
+- `/standings`
+- `/standings-season`
+- `/standings`
+    - `/now`
+    - `/{date}`
 </br>
+</br>
+
+#TODO add more base urls & endpoints
 
 Parameters:
 - `playerId` e.g., '8479318' for Auston Matthews.
@@ -241,6 +243,19 @@ get_countries()
 
 
 ### Get Seasons
+Fetch data from the NHL API 'season' endpoint.
+
+`get_seasons(sort="id", direction="DESC", filter=None, input_validation=True)`
+
+Parameters:
+- sort (str or list, optional): Field to sort the seasons by. Default is "id". Valid values are "id" and other fields present in the NHL API response.
+- direction (str or list): Direction of sorting. Default is "DESC". Valid values are "ASC" (ascending) and "DESC" (descending).
+- filter (str or list, optional): The fields to include in the json response. Default is 'None' which returns all fields.
+- input_validation (bool): Flag to enable/disable input validation. Default is True.
+
+Returns:
+- dict: Season data as a JSON dictionary.
+- None: In case of an error.
 
 </br>
 
@@ -250,6 +265,7 @@ get_countries()
 ```
 get_seasons()
 
+#TODO add example response
 
 ```
 
@@ -261,6 +277,19 @@ get_seasons()
 ---
 
 ### Get Draft Rounds
+Fetch data from the NHL API 'draft' endpoint.
+
+`get_draftrounds(sort="draftYear", direction="DESC", filter=None, input_validation=True)`
+
+Parameters:
+- sort (str or list, optional): Field to sort the draft rounds by. Default is "draftYear".
+- direction (str or list): Direction of sorting. Default is "DESC".
+- filter (str or list, optional): The fields to include in the json response. Default is 'None' which returns all fields.
+- input_validation (bool): Flag to enable/disable input validation. Default is True.
+
+Returns:
+- dict: Draft round data as a json dictionary.
+- None: In case of an error.
 
 </br>
 
@@ -270,6 +299,7 @@ get_seasons()
 ```
 get_draftrounds()
 
+#TODO add example response
 
 ```
 
@@ -281,15 +311,82 @@ get_draftrounds()
 ---
 
 ### Get Skaters Stats
+Fetch data from the NHL API skater 'skater' endpoint.
+
+`get_skaters_stats(season=None, report="summary", aggregate=True, min_gp=0, max_gp=None, sort=["points", "goals", "assists", "playerId"], sort_direction=["DESC", "DESC", "DESC", "ASC"], game_type=2, start_season=None, end_season=None, is_game=False, start_date=None, end_date=None, franchise_id=None, opponent_franchise_id=None, position=None, skater_full_name=None, is_rookie=None, is_active=None, is_in_hall_of_fame=None, nationality_code=None, birth_state_province_code=None, home_or_road=None, game_result=None, draft_round=None, draft_year=None, shoots=None, property=None, comparator=None, value=None, skater_limit=100, input_validation=True)`
+
+Parameters:
+- season (str, optional): The season to return the skaters stats from (e.g., '20232024').
+- report (str): The report type to return. Available report types are 'summary', 'bios', 'faceoffpercentages', 'faceoffwins', 'goalsForAgainst', 'realtime', 'penalties', 'penaltykill', 'penaltyShots', 'powerplay', 'puckPossessions', 'summaryshooting', 'percentages', 'scoringRates', 'scoringpergame', 'shootout', 'shottype', 'timeonice'.
+- aggregate (bool): Boolean option to aggregate skaters stats over multiple seasons or games. Default is 'True'.
+- min_gp (int): The minimum number of games played. Default is '0'.
+- max_gp (int, optional): The maximum number of games played. Default is 'None'.
+- sort (str or list, optional): The sort field(s) for the query. Can be a single string or a list of strings. 'None' returns skaters with no sorting.
+- sor_direction (str or list): The sort direction(s) for the query. Can be a single string or a list of strings.
+- game_type (int, optional): The type of game ('1' for pre-season, '2' for regular season, '3' for playoffs, '4' for all-star games). Default is '2'.
+- start_season (str, optional): The starting season of the range. Default is 'None'.
+- end_season (str, optional): The ending season of the range. Default is 'None'.
+- is_game (bool): The flag for providing a range of dates. Default is 'False'.
+- start_date(str, optional): The starting date of the range (YYYY-MM-DD). Default is 'None'.
+- end_date(str, optional): The ending date of the range (YYYY-MM-DD). Default is 'None'.
+- franchise_id (int, optional): The franchise identifier to return the skaters stats from. Default is 'None' which returns all franchises.
+- opponent_franchise_id (int, optional): The opponent franchise identifier to return the skaters stats from. Default is 'None' which returns all opponent franchises.
+- position (str or list, optional): The positions of the skaters. Default is 'None' which returns all positions.
+- skater_full_name (str, optional): The full name of the skater to filter. Default is 'None' which returns all skaters.
+- is_rookie (bool, optional): Whether the skaters are a rookie (True to return rookies, False to exclude rookies / return veterans). Default is 'None' which returns all skaters.
+- is_active (bool, optional): Whether the skaters are active (True to return active skaters, False to return incactive skaters). Default is 'None' which returns all skaters.
+- is_in_hall_of_fame (bool, optional): Wether the skaters are in the hall of fame. Default is 'None' which returns all skaters.
+- nationality_code (str, optional): The nationlity code of the skaters to return the stats from (e.g., 'CAN'). Default is 'None' which returns all nationalities.
+- birth_state_province_code (str, optional): The birth state province code of the skaters to return the stats from (e.g., 'ON'). Default is 'None' which returns all birth state provinces.
+- home_or_road (str, optional): The skaters stats from home or away games ('H' for home, 'R' for road/away).  Default is 'None' which returns all games.
+- game_result (str, optional): The skaters stats from games with the provided result ('W' for wins, 'L' for losses, and 'O' for overtime losses). Default is 'None' which returns all game results.
+- draft_round (str or int, optional): The draft round of the skaters to return the stats from. Default is 'None' which returns all rounds.
+- draft_year (str or int, optional): The draft year of the skaters to return the stats from (e.g., '2012'). Note: if no draft round is input, returns from first round, and only returns data for a single draft round.  Default is 'None' which returns all draft years.
+- shoots (str, optional): The handedness of the skaters to return the stats from ('L' for left, 'R' for right). Default is 'None' which returns all skaters.
+- property (str or list, optional): The property to filter by (note: works alongside a provided comparator and value). Default is 'None'.
+- comparator (str or list, optional): The comparator to filter by ('>=', '=', and '<=') (note: works alongside a provided comparator and value). Default is 'None'.
+- value (str or int or list, optional): The value to filter by (note: works alongside a provided comparator and value). Default is 'None'.
+- skater_limit (int): The max number of skaters in one loop (loops to return all skaters regardless of limit).  Default is '100'.
+- input_validation (bool): Flag to enable/disable input validation. Default is 'True'.
+
+Returns:
+- list: List of dictionaries containing skater(s) season stats.
+- None: In case of an error.
 
 </br>
-
 <details>
-  <summary>Example:</summary>
+  <summary>Example for a season:</summary>
 
 ```
 get_skaters_stats()
 
+#TODO add example response
+
+```
+
+</details>
+</br>
+
+<details>
+  <summary>Example for a range of seasons:</summary>
+
+```
+get_skaters_stats()
+
+#TODO add example response
+
+```
+
+</details>
+</br>
+
+<details>
+  <summary>Example for a range of games:</summary>
+
+```
+get_skaters_stats()
+
+#TODO add example response
 
 ```
 
@@ -310,6 +407,7 @@ get_skaters_stats()
 ```
 get_teams_stats()
 
+#TODO add example response
 
 ```
 
@@ -330,6 +428,7 @@ get_teams_stats()
 ```
 get_goalies_stats()
 
+#TODO add example response
 
 ```
 
@@ -350,6 +449,7 @@ get_goalies_stats()
 ```
 get_players()
 
+#TODO add example response
 
 ```
 
@@ -370,6 +470,7 @@ get_players()
 ```
 get_player_landing()
 
+#TODO add example response
 
 ```
 
@@ -390,6 +491,7 @@ get_player_landing()
 ```
 get_player_gamelog()
 
+#TODO add example response
 
 ```
 
@@ -453,6 +555,7 @@ get_franchises()
 ```
 get_roster()
 
+#TODO add example response
 
 ```
 
@@ -473,6 +576,7 @@ get_roster()
 ```
 get_roster_seasons()
 
+#TODO add example response
 
 ```
 
@@ -518,6 +622,7 @@ get_roster_seasons()
 ```
 get_playbyplay()
 
+#TODO add example response
 
 ```
 
@@ -554,6 +659,7 @@ get_playbyplay()
 ```
 get_scores()
 
+#TODO add example response
 
 ```
 
@@ -574,6 +680,7 @@ get_scores()
 ```
 get_schedule_calendar()
 
+#TODO add example response
 
 ```
 
@@ -594,6 +701,7 @@ get_schedule_calendar()
 ```
 get_schedule()
 
+#TODO add example response
 
 ```
 
@@ -614,6 +722,7 @@ get_schedule()
 ```
 get_standings()
 
+#TODO add example response
 
 ```
 
@@ -634,6 +743,7 @@ get_standings()
 ```
 get_standings_seasons()
 
+#TODO add example response
 
 ```
 
