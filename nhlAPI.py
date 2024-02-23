@@ -538,7 +538,7 @@ def get_player_gamelog(player_id, season, game_type=2, view="gameLog", input_val
 
     return data
 
-def get_skaters_stats(season=None, report="summary", aggregate=True, min_gp=0, max_gp=None, sort=["points", "goals", "assists", "playerId"], sort_direction=["DESC", "DESC", "DESC", "ASC"], game_type=2, start_season=None, end_season=None, is_game=False, start_date=None, end_date=None, franchise_id=None, opponent_franchise_id=None, position=None, skater_full_name=None, is_rookie=None, is_active=None, is_in_hall_of_fame=None, nationality_code=None, birth_state_province_code=None, home_or_road=None, game_result=None, draft_round=None, draft_year=None, shoots=None, property=None, comparator=None, value=None, skater_limit=100, input_validation=True):
+def get_skaters_stats(season=None, report="summary", aggregate=True, min_gp=0, max_gp=None, sort=["points", "goals", "assists", "playerId"], sort_direction=["DESC", "DESC", "DESC", "ASC"], game_type=2, start_season=None, end_season=None, is_game=False, start_date=None, end_date=None, franchise_id=None, opponent_franchise_id=None, position=None, skater_full_name=None, is_rookie=None, is_active=None, is_in_hall_of_fame=None, nationality_code=None, birth_state_province_code=None, home_or_road=None, game_result=None, draft_round=None, draft_year=None, shoots=None, property=None, comparator=None, value=None, skater_limit=100, start=0, return_all=True, input_validation=True):
     """
     Fetch data from the NHL API skater 'skater' endpoint.
 
@@ -573,7 +573,9 @@ def get_skaters_stats(season=None, report="summary", aggregate=True, min_gp=0, m
     - property (str or list, optional): The property to filter by (note: works alongside a provided comparator and value). Default is 'None'.
     - comparator (str or list, optional): The comparator to filter by ('>=', '=', and '<=') (note: works alongside a provided comparator and value). Default is 'None'.
     - value (str or int or list, optional): The value to filter by (note: works alongside a provided comparator and value). Default is 'None'.
-    - skater_limit (int): The max number of skaters in one loop (loops to return all skaters regardless of limit).  Default is '100'.
+    - skater_limit (int): The max number of skaters to return if return_all is set to 'False'.  Default is '100'.
+    - start (int): The starting point of the list to return the skaters from if return_all is set to 'False'. Default is '0'.
+    - return_all (bool): Flag to determine whether to return all skaters or only a single loop of skaters with the provided limit. Default is 'True'.
     - input_validation (bool): Flag to enable/disable input validation. Default is 'True'.
 
     Returns:
@@ -662,6 +664,10 @@ def get_skaters_stats(season=None, report="summary", aggregate=True, min_gp=0, m
         if not validate_integer(skater_limit) or not int(skater_limit)>0:
             raise ValueError(f"Invalid skater_limit='{skater_limit}'. Must be a positive integer.")
         
+        # Validate start
+        if not validate_integer(start) or not int(start)>=0:
+            raise ValueError(f"Invalid start='{start}'. Must be a positive integer.")
+        
         # Validate is_active if provided
         if is_active is not None and not validate_boolean(is_active):
             raise ValueError(f"Invalid is_active='{is_active}'. Valid fields include: 'True', 'False'.")
@@ -720,6 +726,10 @@ def get_skaters_stats(season=None, report="summary", aggregate=True, min_gp=0, m
         # Validate is_game
         if not validate_boolean(is_game):
             raise ValueError(f"Invalid is_game='{is_game}'. Valid fields include: 'True', 'False'.")
+        
+        # Validate return_all
+        if not validate_boolean(return_all):
+            raise ValueError(f"Invalid return_all='{return_all}'. Valid fields include: 'True', 'False'.")
 
     # Construct the URL for the 'skater' endpoint
     base_url = "https://api.nhle.com/stats/rest/en/skater/" + report
@@ -825,29 +835,40 @@ def get_skaters_stats(season=None, report="summary", aggregate=True, min_gp=0, m
     all_skaters_data = []
 
     # Loop over multiple times to fetch all skaters
-    while True:
+    if return_all:
+        while True:
+            # Construct the complete URL
+            url = f"{base_url}?{'&'.join([f'{key}={value}' for key, value in params.items()])}"
+
+            # Make API request
+            data = make_api_request(url, input_validation=input_validation)
+
+            if data is None:
+                return None
+
+            all_skaters_data.extend(data.get("data", []))
+
+            # Check if there are more players to fetch
+            if len(all_skaters_data) >= data.get("total", 0):
+                break
+
+            # Update the starting position for the next request
+            params["start"] = str(len(all_skaters_data))
+
+        return all_skaters_data
+    else:
+        # Update the starting position based on the start provided
+        params["start"] = str(start)
+
         # Construct the complete URL
         url = f"{base_url}?{'&'.join([f'{key}={value}' for key, value in params.items()])}"
 
         # Make API request
         data = make_api_request(url, input_validation=input_validation)
 
-        if data is None:
-            return None
+        return data.get("data", None)
 
-        all_skaters_data.extend(data.get("data", []))
-
-        # Check if there are more players to fetch
-        if len(all_skaters_data) >= data.get("total", 0):
-            break
-
-        # Update the starting position for the next request
-        params["start"] = str(len(all_skaters_data))
-
-    return all_skaters_data
-
-#TODO test edge cases
-def get_goalies_stats(season=None, report="summary", aggregate=True, min_gp=0, max_gp=None, sort=["points", "goals", "assists", "playerId"], sort_direction=["DESC", "DESC", "DESC", "ASC"], game_type=2, start_season=None, end_season=None, is_game=False, start_date=None, end_date=None, franchise_id=None, opponent_franchise_id=None, position=None, goalie_full_name=None, is_rookie=None, is_active=None, is_in_hall_of_fame=None, nationality_code=None, birth_state_province_code=None, home_or_road=None, game_result=None, draft_round=None, draft_year=None, catches=None, property=None, comparator=None, value=None, skater_limit=100, input_validation=True):
+def get_goalies_stats(season=None, report="summary", aggregate=True, min_gp=0, max_gp=None, sort=["points", "goals", "assists", "playerId"], sort_direction=["DESC", "DESC", "DESC", "ASC"], game_type=2, start_season=None, end_season=None, is_game=False, start_date=None, end_date=None, franchise_id=None, opponent_franchise_id=None, position=None, goalie_full_name=None, is_rookie=None, is_active=None, is_in_hall_of_fame=None, nationality_code=None, birth_state_province_code=None, home_or_road=None, game_result=None, draft_round=None, draft_year=None, catches=None, property=None, comparator=None, value=None, goalie_limit=100, start=0, return_all=True, input_validation=True):
     """
     Fetch data from the NHL API 'goalie' endpoint.
 
@@ -882,7 +903,9 @@ def get_goalies_stats(season=None, report="summary", aggregate=True, min_gp=0, m
     - property (str or list, optional): The property to filter by (note: works alongside a provided comparator and value). Default is 'None'.
     - comparator (str or list, optional): The comparator to filter by ('>=', '=', and '<=') (note: works alongside a provided comparator and value). Default is 'None'.
     - value (str or int or list, optional): The value to filter by (note: works alongside a provided comparator and value). Default is 'None'.
-    - skater_limit (int): The max number of goalies in one loop (loops to return all goalies regardless of limit).  Default is '100'.
+    - goalie_limit (int): The max number of goalies in one loop (loops to return all goalies regardless of limit).  Default is '100'.
+    - start (int): The starting point of the list to return the goalies from if return_all is set to 'False'. Default is '0'.
+    - return_all (bool): Flag to determine whether to return all goalies or only a single loop of skaters with the provided limit. Default is 'True'.
     - input_validation (bool): Flag to enable/disable input validation. Default is 'True'.
 
     Returns:
@@ -912,8 +935,8 @@ def get_goalies_stats(season=None, report="summary", aggregate=True, min_gp=0, m
                 raise ValueError(f"Invalid season='{season}'. Valid seasons include: {valid_seasons}.")
 
         # Validate the report parameter
-        if not validate_report(report=report, key="skaters"):
-            valid_fields = validate_report(key="skaters", return_fields=True)
+        if not validate_report(report=report, key="goalies"):
+            valid_fields = validate_report(key="goalies", return_fields=True)
             raise ValueError(f"Invalid report='{report}'. Valid report types include: {valid_fields}.")
         
         # Validate the sort field parameter
@@ -968,9 +991,13 @@ def get_goalies_stats(season=None, report="summary", aggregate=True, min_gp=0, m
             raise ValueError(f"Invalid is_rookie parameter='{is_rookie}'. Valid fields include: 'True', 'False'.")
 
         # Validate skater_limit
-        if not validate_integer(skater_limit) or not int(skater_limit)>0:
-            raise ValueError(f"Invalid skater_limit='{skater_limit}'. Must be a positive integer.")
+        if not validate_integer(goalie_limit) or not int(goalie_limit)>0:
+            raise ValueError(f"Invalid skater_limit='{goalie_limit}'. Must be a positive integer.")
         
+        # Validate start
+        if not validate_integer(start) or not int(start)>=0:
+            raise ValueError(f"Invalid start='{start}'. Must be a positive integer.")
+
         # Validate is_active if provided
         if is_active is not None and not validate_boolean(is_active):
             raise ValueError(f"Invalid is_active='{is_active}'. Valid fields include: 'True', 'False'.")
@@ -1030,8 +1057,12 @@ def get_goalies_stats(season=None, report="summary", aggregate=True, min_gp=0, m
         if not validate_boolean(is_game):
             raise ValueError(f"Invalid is_game='{is_game}'. Valid fields include: 'True', 'False'.")
 
-    # Construct the URL for the 'skater' endpoint
-    base_url = "https://api.nhle.com/stats/rest/en/skater/" + report
+        # Validate return_all
+        if not validate_boolean(return_all):
+            raise ValueError(f"Invalid return_all='{return_all}'. Valid fields include: 'True', 'False'.")
+
+    # Construct the URL for the 'goalie' endpoint
+    base_url = "https://api.nhle.com/stats/rest/en/goalie/" + report
 
     # Construct the cayenneExp
     if start_season is not None and end_season is not None:
@@ -1115,7 +1146,7 @@ def get_goalies_stats(season=None, report="summary", aggregate=True, min_gp=0, m
         "isAggregate": str(aggregate),
         "isGame": str(is_game),
         "start": "0",
-        "limit": str(skater_limit),
+        "limit": str(goalie_limit),
         "factCayenneExp": factCayenneExp,
         "cayenneExp": cayenneExp
     }
@@ -1133,30 +1164,41 @@ def get_goalies_stats(season=None, report="summary", aggregate=True, min_gp=0, m
     # Initialize an empty list to store the results
     all_goalies_data = []
 
-    # Loop over multiple times to fetch all goalies
-    while True:
+    # Loop over multiple times to fetch all skaters
+    if return_all:
+        while True:
+            # Construct the complete URL
+            url = f"{base_url}?{'&'.join([f'{key}={value}' for key, value in params.items()])}"
+
+            # Make API request
+            data = make_api_request(url, input_validation=input_validation)
+
+            if data is None:
+                return None
+
+            all_goalies_data.extend(data.get("data", []))
+
+            # Check if there are more players to fetch
+            if len(all_goalies_data) >= data.get("total", 0):
+                break
+
+            # Update the starting position for the next request
+            params["start"] = str(len(all_goalies_data))
+
+        return all_goalies_data
+    else:
+        # Update the starting position based on the start provided
+        params["start"] = str(start)
+
         # Construct the complete URL
         url = f"{base_url}?{'&'.join([f'{key}={value}' for key, value in params.items()])}"
 
         # Make API request
         data = make_api_request(url, input_validation=input_validation)
 
-        if data is None:
-            return None
+        return data.get("data", None)
 
-        all_goalies_data.extend(data.get("data", []))
-
-        # Check if there are more goalies to fetch
-        if len(all_goalies_data) >= data.get("total", 0):
-            break
-
-        # Update the starting position for the next request
-        params["start"] = str(len(all_goalies_data))
-
-    return all_goalies_data
-
-#TODO test edge cases
-def get_teams_stats(season=None, report="summary", aggregate=True, min_gp=0, max_gp=None, sort=["points", "wins", "franchiseId"], sort_direction=["DESC", "DESC", "ASC"], game_type=2, start_season=None, end_season=None, is_game=False, start_date=None, end_date=None, franchise_id=None, opponent_franchise_id=None, home_or_road=None, game_result=None, property=None, comparator=None, value=None, team_limit=50, input_validation=True):
+def get_teams_stats(season=None, report="summary", aggregate=True, min_gp=0, max_gp=None, sort=["points", "wins", "franchiseId"], sort_direction=["DESC", "DESC", "ASC"], game_type=2, start_season=None, end_season=None, is_game=False, start_date=None, end_date=None, franchise_id=None, opponent_franchise_id=None, home_or_road=None, game_result=None, property=None, comparator=None, value=None, team_limit=50, start=0, return_all=True, input_validation=True):
     """
     Fetch data from the NHL API skater 'team' endpoint.
 
@@ -1182,6 +1224,8 @@ def get_teams_stats(season=None, report="summary", aggregate=True, min_gp=0, max
     - comparator (str or list, optional): The comparator to filter by ('>=', '=', and '<=') (note: works alongside a provided comparator and value). Default is 'None'.
     - value (str or int or list, optional): The value to filter by (note: works alongside a provided comparator and value). Default is 'None'.
     - team_limit (int): The max number of teams in one loop (loops to return all teams regardless of limit).  Default is '50'.
+    - start (int): The starting point of the list to return the teams from if return_all is set to 'False'. Default is '0'.
+    - return_all (bool): Flag to determine whether to return all teams or only a single loop of teams with the provided limit. Default is 'True'.
     - input_validation (bool): Flag to enable/disable input validation. Default is 'True'.
 
     Returns:
@@ -1256,6 +1300,10 @@ def get_teams_stats(season=None, report="summary", aggregate=True, min_gp=0, max
         if not validate_integer(team_limit) or not int(team_limit)>0:
             raise ValueError(f"Invalid team_limit='{team_limit}'. Must be a positive integer.")
 
+        # Validate start
+        if not validate_integer(start) or not int(start)>=0:
+            raise ValueError(f"Invalid start='{start}'. Must be a positive integer.")
+
         # Validate home_or_road if provided
         if home_or_road is not None and not validate_home_road(home_or_road):
             raise ValueError(f"Invalid home_or_road='{home_or_road}'. Valid fields include: 'H', 'R'.")
@@ -1279,6 +1327,10 @@ def get_teams_stats(season=None, report="summary", aggregate=True, min_gp=0, max
         # Validate is_game
         if not validate_boolean(is_game):
             raise ValueError(f"Invalid is_game='{is_game}'. Valid fields include: 'True', 'False'.")
+
+        # Validate return_all
+        if not validate_boolean(return_all):
+            raise ValueError(f"Invalid return_all='{return_all}'. Valid fields include: 'True', 'False'.")
 
     # Construct the URL for the 'skater' endpoint
     base_url = "https://api.nhle.com/stats/rest/en/team/" + report
@@ -1347,35 +1399,47 @@ def get_teams_stats(season=None, report="summary", aggregate=True, min_gp=0, max
     # Initialize an empty list to store the results
     all_teams_data = []
 
-    # Loop over multiple times to fetch all teams
-    while True:
+    # Loop over multiple times to fetch all skaters
+    if return_all:
+        while True:
+            # Construct the complete URL
+            url = f"{base_url}?{'&'.join([f'{key}={value}' for key, value in params.items()])}"
+
+            # Make API request
+            data = make_api_request(url, input_validation=input_validation)
+
+            if data is None:
+                return None
+
+            all_teams_data.extend(data.get("data", []))
+
+            # Check if there are more players to fetch
+            if len(all_teams_data) >= data.get("total", 0):
+                break
+
+            # Update the starting position for the next request
+            params["start"] = str(len(all_teams_data))
+
+        return all_teams_data
+    else:
+        # Update the starting position based on the start provided
+        params["start"] = str(start)
+
         # Construct the complete URL
         url = f"{base_url}?{'&'.join([f'{key}={value}' for key, value in params.items()])}"
 
         # Make API request
-        data = make_api_request(url)
+        data = make_api_request(url, input_validation=input_validation)
 
-        if data is None:
-            return None
-
-        all_teams_data.extend(data.get("data", []))
-
-        # Check if there are more teams to fetch
-        if len(all_teams_data) >= data.get("total", 0):
-            break
-
-        # Update the starting position for the next request
-        params["start"] = str(len(all_teams_data))
-
-    return all_teams_data
+        return data.get("data", None)
 
 def get_schedule_calendar(date="now", input_validation=True):
     """
     Fetches schedule calendar data from the NHL API for a specific date.
 
     Parameters:
-    - date (str, optional): The date for which to fetch the schedule calendar data (in 'YYYY-MM-DD' format). Default is "now".
-    - input_validation (bool): Flag to enable/disable input validation. Default is True.
+    - date (str, optional): The date for which to fetch the schedule calendar data (in 'YYYY-MM-DD' format). Default is 'now'.
+    - input_validation (bool): Flag to enable/disable input validation. Default is 'True'.
 
     Returns:
     - dict: Schedule calendar data as a JSON dictionary.
@@ -1385,7 +1449,7 @@ def get_schedule_calendar(date="now", input_validation=True):
         # Validate date parameter and format if valid
         formatted_date = format_date(date)
         if not formatted_date:
-            raise ValueError("Invalid date format. Please provide the date in 'YYYY-MM-DD' format.")
+            raise ValueError(f"Invalid date='{date}'. Please provide the date in 'YYYY-MM-DD' format.")
     else:
         formatted_date = date
 
@@ -1411,8 +1475,8 @@ def get_schedule(date="now", input_validation=True):
     Fetches schedule data from the NHL API for a specific date.
 
     Parameters:
-    - date (str, optional): The date for which to fetch the schedule data (in 'YYYY-MM-DD' format). Default is "now".
-    - input_validation (bool): Flag to enable/disable input validation. Default is True.
+    - date (str, optional): The date for which to fetch the schedule data (in 'YYYY-MM-DD' format). Default is 'now'.
+    - input_validation (bool): Flag to enable/disable input validation. Default is 'True'.
 
     Returns:
     - dict: Schedule data as a JSON dictionary.
@@ -1423,7 +1487,7 @@ def get_schedule(date="now", input_validation=True):
         # Validate date parameter and format if valid
         formatted_date = format_date(date)
         if not formatted_date:
-            raise ValueError("Invalid date format. Please provide the date in 'YYYY-MM-DD' format.")
+            raise ValueError(f"Invalid date='{date}'. Please provide the date in 'YYYY-MM-DD' format.")
     else:
         formatted_date = date
 
@@ -1444,8 +1508,8 @@ def get_standings(date="now", input_validation=True):
     Fetches NHL standings data for a specific date or today's date.
 
     Parameters:
-    - date (str, optional): The date for which to fetch the standings data (in 'YYYY-MM-DD' format). Default is "now".
-    - input_validation (bool): Flag to enable/disable input validation. Default is True.
+    - date (str, optional): The date for which to fetch the standings data (in 'YYYY-MM-DD' format). Default is 'now'.
+    - input_validation (bool): Flag to enable/disable input validation. Default is 'True'.
 
     Returns:
     - dict: Standings data as a JSON dictionary.
@@ -1455,7 +1519,7 @@ def get_standings(date="now", input_validation=True):
         # Validate date parameter and format if valid
         formatted_date = format_date(date)
         if not formatted_date:
-            raise ValueError("Invalid date format. Please provide the date in 'YYYY-MM-DD' format.")
+            raise ValueError(f"Invalid date='{date}'. Please provide the date in 'YYYY-MM-DD' format.")
     else:
         formatted_date = date
 
@@ -1466,14 +1530,17 @@ def get_standings(date="now", input_validation=True):
         url = f"{base_url}{formatted_date}"
 
     try:
-        standings_data = make_api_request(url)
+        standings_data = make_api_request(url, input_validation=input_validation)
         return standings_data
     except Exception as e:
         raise ValueError(f"Error fetching standings data: {e}")
 
-def get_standings_seasons():
+def get_standings_seasons(input_validation=True):
     """
     Fetch data from the NHL API 'standings-season' endpoint.
+
+    Parameters:
+    - input_validation (bool): Flag to enable/disable input validation. Default is 'True'.
 
     Returns:
     - dict: NHL standings available seasons data as a json dictionary.
@@ -1484,7 +1551,7 @@ def get_standings_seasons():
     url = "https://api-web.nhle.com/v1/standings-season"
 
     # Make API request using the helper function
-    data = make_api_request(url)
+    data = make_api_request(url, input_validation=input_validation)
 
     if data is None:
         return None
@@ -1496,8 +1563,8 @@ def get_scores(date="now", input_validation=True):
     Fetches NHL scores data for a specific date or today's date.
 
     Parameters:
-    - date (str, optional): The date for which to fetch the scores data (in 'YYYY-MM-DD' format). Default is "now".
-    - input_validation (bool): Flag to enable/disable input validation. Default is True.
+    - date (str, optional): The date for which to fetch the scores data (in 'YYYY-MM-DD' format). Default is 'now'.
+    - input_validation (bool): Flag to enable/disable input validation. Default is 'True'.
 
     Returns:
     - dict: Scores data as a JSON dictionary.
@@ -1507,7 +1574,7 @@ def get_scores(date="now", input_validation=True):
         # Validate date parameter and format if valid
         formatted_date = format_date(date)
         if not formatted_date:
-            raise ValueError("Invalid date format. Please provide the date in 'YYYY-MM-DD' format.")
+            raise ValueError(f"Invalid date='{date}'. Please provide the date in 'YYYY-MM-DD' format.")
     else:
         formatted_date = date
 
@@ -1518,7 +1585,7 @@ def get_scores(date="now", input_validation=True):
         url = f"{base_url}{formatted_date}"
 
     try:
-        scores_data = make_api_request(url)
+        scores_data = make_api_request(url, input_validation=input_validation)
         return scores_data
     except Exception as e:
         raise ValueError(f"Error fetching scores data: {e}")
@@ -1539,7 +1606,7 @@ def get_playbyplay(game_id, view=None, input_validation=True):
     if input_validation:
         # Validate game_id
         if not validate_id(game_id):
-            raise ValueError("Invalid game_id. It should be a positive integer or a string convertible to an integer.")
+            raise ValueError(f"Invalid game_id='{game_id}'. It should be a positive integer or a string convertible to an integer.")
 
         # Convert game_id to integer if it's a string
         game_id = int(game_id)
@@ -1550,7 +1617,7 @@ def get_playbyplay(game_id, view=None, input_validation=True):
 
     try:
         # Make API request using the helper function
-        data = make_api_request(url)
+        data = make_api_request(url, input_validation=input_validation)
 
         if data is None:
             return None
@@ -1580,8 +1647,8 @@ def get_boxscore(game_id, view=None, input_validation=True):
 
     Parameters:
     - game_id (int): The ID of the game.
-    - view (str): The part of the json to return, use '.' as a delimiter for subfields. Default is None (to return everything).
-    - input_validation (bool): Flag to enable/disable input validation. Default is True.
+    - view (str): The part of the json to return, use '.' as a delimiter for subfields. Default is 'None' (to return everything).
+    - input_validation (bool): Flag to enable/disable input validation. Default is 'True'.
 
     Returns:
     - dict: Boxscore data as a JSON dictionary.
@@ -1590,7 +1657,7 @@ def get_boxscore(game_id, view=None, input_validation=True):
     if input_validation:
         # Validate game_id
         if not validate_id(game_id):
-            raise ValueError("Invalid game_id. It should be a positive integer or a string convertible to an integer.")
+            raise ValueError(f"Invalid game_id='{game_id}'. It should be a positive integer or a string convertible to an integer.")
 
         # Convert game_id to integer if it's a string
         game_id = int(game_id)
@@ -1601,7 +1668,7 @@ def get_boxscore(game_id, view=None, input_validation=True):
 
     try:
         # Make API request using the helper function
-        data = make_api_request(url)
+        data = make_api_request(url, input_validation=input_validation)
 
         if data is None:
             return None
@@ -1631,10 +1698,10 @@ def get_shifts(game_id, sort=None, direction=None, view=None, input_validation=T
 
     Parameters:
     - game_id (int): The ID of the game.
-    - sort (str, optional): The field to sort the data by. Default is None.
-    - direction (str, optional): The sorting direction. Default is None.
-    - view (str): The part of the json to return, use '.' as a delimiter for subfields. Default is None (to return everything).
-    - input_validation (bool): Flag to enable/disable input validation. Default is True.
+    - sort (str, optional): The field to sort the data by. Default is 'None'.
+    - direction (str, optional): The sorting direction. Default is 'None'.
+    - view (str): The part of the json to return, use '.' as a delimiter for subfields. Default is 'None' (to return everything).
+    - input_validation (bool): Flag to enable/disable input validation. Default is 'True'.
 
     Returns:
     - dict: Shift data as a JSON dictionary.
@@ -1644,15 +1711,15 @@ def get_shifts(game_id, sort=None, direction=None, view=None, input_validation=T
     if input_validation:
         # Validate game_id
         if not validate_id(game_id):
-            raise ValueError("Invalid game_id. It should be a positive integer or a string convertible to an integer.")
+            raise ValueError(f"Invalid game_id='{game_id}'. It should be a positive integer or a string convertible to an integer.")
 
         # Validate sort field
         if sort is not None and not validate_field(sort, key="shifts"):
-            raise ValueError("Invalid sort field.")
+            raise ValueError(f"Invalid sort='{sort}'.")
 
         # Validate sort direction
         if direction is not None and not validate_sort_direction(direction):
-            raise ValueError("Invalid sort direction.")
+            raise ValueError(f"Invalid sort direction='{direction}'. Valild directions include 'ASC', 'DESC'.")
 
     # Construct the URL for the 'shiftcharts' endpoint with optional sorting
     base_url = "https://api.nhle.com/stats/rest/en/shiftcharts"
@@ -1664,7 +1731,7 @@ def get_shifts(game_id, sort=None, direction=None, view=None, input_validation=T
 
     try:
         # Make API request using the helper function
-        data = make_api_request(url)
+        data = make_api_request(url, input_validation=input_validation)
 
         if data is None:
             return None
@@ -1688,21 +1755,27 @@ def get_shifts(game_id, sort=None, direction=None, view=None, input_validation=T
         # Raise a ValueError if there's an issue with the validation
         raise ValueError(str(e))
 
-def get_team_information(is_active=None):
+def get_team_information(is_active=None, input_validation=True):
     """
     Combine data from 'franchises', 'standings', and 'schedule_calendar' endpoints.
 
     Parameters:
     - is_active (bool, optional): Flag to specify if only active teams should be considered. Default is None.
+    - input_validation (bool): Flag to enable/disable input validation. Default is 'True'.
 
     Returns:
     - dict: Team information combining data from 'franchises', 'standings', and 'schedule_calendar'.
     """
 
+    if input_validation:
+        # Validate is_active if provided
+        if is_active is not None and not validate_boolean(is_active):
+            raise ValueError(f"Invalid is_active='{is_active}'. Valid fields include: 'True', 'False'.")
+
     # Get data from endpoints
-    franchises_data = get_franchises()
-    nhl_standings_data = get_standings()
-    nhl_schedule_calendar = get_schedule_calendar()
+    franchises_data = get_franchises(input_validation=input_validation)
+    nhl_standings_data = get_standings(input_validation=input_validation)
+    nhl_schedule_calendar = get_schedule_calendar(input_validation=input_validation)
 
     # Check if any of the required data is missing
     if None in (franchises_data, nhl_standings_data, nhl_schedule_calendar):
@@ -1776,8 +1849,8 @@ def get_club_stats_seasons(team_code, input_validation=True):
     Fetch data from the NHL API 'team roster' endpoint.
 
     Parameters:
-    - team_code (str): The abbreviated code of the team, (ex. "TOR").
-    - input_validation (bool): Flag to enable/disable input validation. Default is True.
+    - team_code (str): The abbreviated code of the team, (ex. 'TOR').
+    - input_validation (bool): Flag to enable/disable input validation. Default is 'True'.
 
     Returns:
     - dict: Player roster data as a json dictionary.
@@ -1787,14 +1860,15 @@ def get_club_stats_seasons(team_code, input_validation=True):
     if input_validation:
         # Validate team_code parameter
         if not validate_team_code(team_code):
-            raise ValueError("(get_club_stats_season) Invalid team code.")
+            valid_team_codes = validate_team_code(team_code, return_fields=True)
+            raise ValueError(f"(get_club_stats_seasons) Invalid team_code={team_code}. Valid team codes include: {valid_team_codes}.")
 
     # Construct the URL for the 'roster' endpoint with sort and direction parameters
     base_url = "https://api-web.nhle.com/v1/club-stats-season/"
     url = f"{base_url}{team_code}"
 
     # Make API request using the helper function
-    data = make_api_request(url)
+    data = make_api_request(url, input_validation=input_validation)
 
     if data is None:
         return None
@@ -1806,11 +1880,11 @@ def get_club_schedule(team_code, period="month", date="now", view=None, input_va
     Fetches schedule data from the NHL API for a specific date.
 
     Parameters:
-    - date (str, optional): The date for which to fetch the schedule data (in 'YYYY-MM-DD' format). Default is "now".
+    - date (str, optional): The date for which to fetch the schedule data (in 'YYYY-MM-DD' format). Default is 'now'.
     - period (str, optional): The period to fetch the schedule data for ('month' or 'week'). Default is 'month'.
-    - team_code (str): The abbreviated code of the team, (ex. "TOR").
+    - team_code (str): The abbreviated code of the team, (ex. 'TOR').
     - view (str): The part of the json to return, use '.' as a delimiter for subfields. Default is None (to return everything).
-    - input_validation (bool): Flag to enable/disable input validation. Default is True.
+    - input_validation (bool): Flag to enable/disable input validation. Default is 'True'.
 
     Returns:
     - dict: Schedule data as a JSON dictionary.
@@ -1820,22 +1894,23 @@ def get_club_schedule(team_code, period="month", date="now", view=None, input_va
     if input_validation:
         # Validate team_code parameter
         if not validate_team_code(team_code):
-            raise ValueError("(get_club_schedule) Invalid team code.")
+            valid_team_codes = validate_team_code(team_code, return_fields=True)
+            raise ValueError(f"(get_club_schedule) Invalid team_code={team_code}. Valid team codes include: {valid_team_codes}.")
         
         # Validate the period parameter
         if period.lower() != "month" and period.lower() != "week":
-            raise ValueError("(get_club_schedule) Invalid period. Valid periods are 'month' and 'week'.")
+            raise ValueError(f"(get_club_schedule) Invalid period='{period}'. Valid periods are 'month' and 'week'.")
 
     if date != "now" and input_validation:
         # Validate date parameter and format if valid
         if period.lower() == "month":
             formatted_date = format_month(date)
             if not formatted_date:
-                raise ValueError("(get_club_schedule) Invalid date format. Please provide the date in 'YYYY-MM-DD' format.")
+                raise ValueError(f"(get_club_schedule) Invalid date='{date}'. Please provide the date in 'YYYY-MM-DD' format.")
         if period.lower() == "week":
             formatted_date = format_date(date)
             if not formatted_date:
-                raise ValueError("(get_club_schedule) Invalid date format. Please provide the date in 'YYYY-MM-DD' format.")
+                raise ValueError(f"(get_club_schedule) Invalid date='{date}'. Please provide the date in 'YYYY-MM-DD' format.")
     else:
         formatted_date = date
 
@@ -1846,7 +1921,7 @@ def get_club_schedule(team_code, period="month", date="now", view=None, input_va
         url = f"{base_url}{team_code}/{period.lower()}/{formatted_date}"
 
     try:
-        roster_data = make_api_request(url)
+        roster_data = make_api_request(url, input_validation=input_validation)
 
         # Filter the response based on the view parameter
         if view is not None:
@@ -1865,7 +1940,7 @@ def get_club_schedule(team_code, period="month", date="now", view=None, input_va
     except Exception as e:
         raise ValueError(f"Error fetching data: {e}")
 
-#TODO get club stats https://api-web.nhle.com/v1/club-stats/TOR/20222023/2
+#TODO get_club_stats https://api-web.nhle.com/v1/club-stats/TOR/20222023/2
 #TODO https://api.nhle.com/stats/rest/en/leaders/skaters/points?cayenneExp=season=20232024%20and%20gameType=2%20and%20player.positionCode%20=%20%27D%27
 #TODO https://assets.nhle.com/mugs/nhl/20232024/TOR/8477479.png
 #TODO https://assets.nhle.com/mugs/actionshots/1296x729/8477479.jpg
