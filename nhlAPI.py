@@ -21,12 +21,13 @@ session = requests.Session()
 # Scraping functions for various NHL API endpoints ##################################################################################################
 #####################################################################################################################################################
 
-def get_config(view=None):
+def get_config(view=None, input_validation=True):
     """
     Fetch data from the NHL API 'config' endpoint.
 
     Parameters:
-    - view (str, optional): The part of the JSON to return, use '.' as a delimiter for subfields. Default is None (returns everything).
+    - view (str, optional): The part of the JSON to return, use '.' as a delimiter for subfields. Default is 'None' (returns everything).
+    - input_validation (bool): Flag to enable/disable input validation. Default is 'True'.
 
     Returns:
     - dict: Configuration data as a JSON dictionary based on the specified view.
@@ -34,10 +35,10 @@ def get_config(view=None):
     """
 
     # URL for the 'config' endpoint
-    url = "https://api.nhle.com/stats/rest/en/config?"
+    url = "https://api.nhle.com/stats/rest/en/config"
 
     # Make API request
-    data = make_api_request(url)
+    data = make_api_request(url, input_validation=input_validation)
 
     if data is None:
         return None
@@ -48,11 +49,13 @@ def get_config(view=None):
         fields = view.split(".")
         filtered_data = data
         for field in fields:
-            # Check if the current field exists in the filtered data
-            if isinstance(filtered_data, dict) and field in filtered_data:
-                filtered_data = filtered_data[field]
-            else:
-                raise ValueError(f"Invalid view parameter. Field '{field}' not found or not a valid subfield.")
+            # Check if the current field exists in the filtered data if input_validation is True
+            if input_validation and not isinstance(filtered_data, dict):
+                raise ValueError(f"Invalid view='{view}'. Filtered data is not a dictionary.")
+            if input_validation and field not in filtered_data:
+                valid_fields = ", ".join(filtered_data.keys())
+                raise ValueError(f"Invalid view='{view}'. Field '{field}' not found. Valid fields at this level include: {valid_fields}.")
+            filtered_data = filtered_data[field]
         return filtered_data
 
     return data
@@ -538,51 +541,203 @@ def get_player_gamelog(player_id, season, game_type=2, view="gameLog", input_val
 
     return data
 
-def get_skaters_stats(season=None, report="summary", aggregate=True, min_gp=0, max_gp=None, sort=["points", "goals", "assists", "playerId"], sort_direction=["DESC", "DESC", "DESC", "ASC"], game_type=2, start_season=None, end_season=None, is_game=False, start_date=None, end_date=None, franchise_id=None, opponent_franchise_id=None, position=None, skater_full_name=None, is_rookie=None, is_active=None, is_in_hall_of_fame=None, nationality_code=None, birth_state_province_code=None, home_or_road=None, game_result=None, draft_round=None, draft_year=None, shoots=None, property=None, comparator=None, value=None, skater_limit=100, start=0, return_all=True, input_validation=True):
+def get_stats(key="skater", **kwargs):
     """
-    Fetch data from the NHL API skater 'skater' endpoint.
+    Fetch data from the NHL API skater 'skater' endpoint for a season, a range of seasons, or a range of dates.
 
     Parameters:
-    - season (str, optional): The season to return the skaters stats from (e.g., '20232024').
-    - report (str): The report type to return. Available report types are 'summary', 'bios', 'faceoffpercentages', 'faceoffwins', 'goalsForAgainst', 'realtime', 'penalties', 'penaltykill', 'penaltyShots', 'powerplay', 'puckPossessions', 'summaryshooting', 'percentages', 'scoringRates', 'scoringpergame', 'shootout', 'shottype', 'timeonice'.
+    - key (str): 'skater', 'goalie', or 'team'.
+    - **kwargs (dict): Keyword arguments for additional parameters.
+
+    Returns:
+    - list: List of dictionaries containing skater(s) season stats.
+    - None: In case of an error.
+
+    Additional Parameters:
+    - report (str): The report type to return. Default is 'summary'.
+    - season (str): The season to return the skaters stats from (e.g., '20232024').
+    - start_season (str): The starting season of the range. Default is 'None'.
+    - end_season (str): The ending season of the range. Default is 'None'.
+    - start_date(str): The starting date of the range (YYYY-MM-DD). Default is 'None'.
+    - end_date(str): The ending date of the range (YYYY-MM-DD). Default is 'None'.
     - aggregate (bool): Boolean option to aggregate skaters stats over multiple seasons or games. Default is 'True'.
-    - min_gp (int): The minimum number of games played. Default is '0'.
-    - max_gp (int, optional): The maximum number of games played. Default is 'None'.
-    - sort (str or list, optional): The sort field(s) for the query. Can be a single string or a list of strings. 'None' returns skaters with no sorting.
-    - sor_direction (str or list): The sort direction(s) for the query. Can be a single string or a list of strings.
-    - game_type (int, optional): The type of game ('1' for pre-season, '2' for regular season, '3' for playoffs, '4' for all-star games). Default is '2'.
-    - start_season (str, optional): The starting season of the range. Default is 'None'.
-    - end_season (str, optional): The ending season of the range. Default is 'None'.
     - is_game (bool): The flag for providing a range of dates. Default is 'False'.
-    - start_date(str, optional): The starting date of the range (YYYY-MM-DD). Default is 'None'.
-    - end_date(str, optional): The ending date of the range (YYYY-MM-DD). Default is 'None'.
-    - franchise_id (int, optional): The franchise identifier to return the skaters stats from. Default is 'None' which returns all franchises.
-    - opponent_franchise_id (int, optional): The opponent franchise identifier to return the skaters stats from. Default is 'None' which returns all opponent franchises.
-    - position (str or list, optional): The positions of the skaters. Default is 'None' which returns all positions.
-    - skater_full_name (str, optional): The full name of the skater to filter. Default is 'None' which returns all skaters.
-    - is_rookie (bool, optional): Whether the skaters are a rookie (True to return rookies, False to exclude rookies / return veterans). Default is 'None' which returns all skaters.
-    - is_active (bool, optional): Whether the skaters are active (True to return active skaters, False to return incactive skaters). Default is 'None' which returns all skaters.
-    - is_in_hall_of_fame (bool, optional): Wether the skaters are in the hall of fame. Default is 'None' which returns all skaters.
-    - nationality_code (str, optional): The nationlity code of the skaters to return the stats from (e.g., 'CAN'). Default is 'None' which returns all nationalities.
-    - birth_state_province_code (str, optional): The birth state province code of the skaters to return the stats from (e.g., 'ON'). Default is 'None' which returns all birth state provinces.
-    - home_or_road (str, optional): The skaters stats from home or away games ('H' for home, 'R' for road/away).  Default is 'None' which returns all games.
-    - game_result (str, optional): The skaters stats from games with the provided result ('W' for wins, 'L' for losses, and 'O' for overtime losses). Default is 'None' which returns all game results.
-    - draft_round (str or int, optional): The draft round of the skaters to return the stats from. Default is 'None' which returns all rounds.
-    - draft_year (str or int, optional): The draft year of the skaters to return the stats from (e.g., '2012'). Note: if no draft round is input, returns from first round, and only returns data for a single draft round.  Default is 'None' which returns all draft years.
-    - shoots (str, optional): The handedness of the skaters to return the stats from ('L' for left, 'R' for right). Default is 'None' which returns all skaters.
-    - property (str or list, optional): The property to filter by (note: works alongside a provided comparator and value). Default is 'None'.
-    - comparator (str or list, optional): The comparator to filter by ('>=', '=', and '<=') (note: works alongside a provided comparator and value). Default is 'None'.
-    - value (str or int or list, optional): The value to filter by (note: works alongside a provided comparator and value). Default is 'None'.
-    - skater_limit (int): The max number of skaters to return if return_all is set to 'False'.  Default is '100'.
-    - start (int): The starting point of the list to return the skaters from if return_all is set to 'False'. Default is '0'.
-    - return_all (bool): Flag to determine whether to return all skaters or only a single loop of skaters with the provided limit. Default is 'True'.
+    - game_type (int): The type of game ('1' for pre-season, '2' for regular season, '3' for playoffs, '4' for all-star games). Default is '2'.
+    - home_or_road (str): The players/teams stats from home or away games ('H' for home, 'R' for road/away).  Default is 'None' which returns all games.
+    - game_result (str): The players/teams stats from games with the provided result ('W' for wins, 'L' for losses, and 'O' for overtime losses). Default is 'None' which returns all game results.
+    - min_gp (int): The minimum number of games played. Default is '0'.
+    - max_gp (int): The maximum number of games played. Default is 'None'.
+    - franchise_id (int): The franchise identifier to return the players/teams stats from. Default is 'None' which returns all franchises.
+    - opponent_franchise_id (int): The opponent franchise identifier to return the players/teams stats from. Default is 'None' which returns all opponent franchises.
+    - position (str or list): The positions of the players. Default is 'None' which returns all positions. Note: only valid for a key of 'skater' or 'goalie'.
+    - player_name (str): The full name of the player to filter. Default is 'None' which returns all players. Note: only valid for a key of 'skater' or 'goalie'.
+    - nationality_code (str): The nationlity code of the players to return the stats from (e.g., 'CAN'). Default is 'None' which returns all nationalities. Note: only valid for a key of 'skater' or 'goalie'.
+    - birth_state_province_code (str): The birth state province code of the players to return the stats from (e.g., 'ON'). Default is 'None' which returns all birth state provinces. Note: only valid for a key of 'skater' or 'goalie'.
+    - is_rookie (bool): Whether the players are a rookie (True to return rookies, False to exclude rookies / return veterans). Default is 'None' which returns all players. Note: only valid for a key of 'skater' or 'goalie'.
+    - is_active (bool): Whether the players are active (True to return active players, False to return incactive players). Default is 'None' which returns all players. Note: only valid for a key of 'skater' or 'goalie'.
+    - is_in_hall_of_fame (bool): Wether the players are in the hall of fame. Default is 'None' which returns all players. Note: only valid for a key of 'skater' or 'goalie'.
+    - draft_round (str or int): The draft round of the players to return the stats from. Default is 'None' which returns all rounds. Note: only valid for a key of 'skater' or 'goalie'.
+    - draft_year (str or int): The draft year of the players to return the stats from (e.g., '2012'). Note: if no draft round is input, returns from first round, and only returns data for a single draft round.  Default is 'None' which returns all draft years. Note: only valid for a key of 'skater' or 'goalie'.
+    - shoots_catches (str): The handedness of the players to return the stats from ('L' for left, 'R' for right). Default is 'None' which returns all players. Note: only valid for a key of 'skater' or 'goalie'.
+    - sort (str or list): The sort field(s) for the query. Can be a single string or a list of strings. 'None' returns skaters with no sorting.
+    - direction (str or list): The sort direction(s) for the query. Can be a single string or a list of strings.
+    - property (str or list): The property to filter by (note: works alongside a provided comparator and value). Default is 'None'.
+    - comparator (str or list): The comparator to filter by ('>=', '=', and '<=') (note: works alongside a provided comparator and value). Default is 'None'.
+    - value (str or int or list): The value to filter by (note: works alongside a provided comparator and value). Default is 'None'.
+    - limit (int): The max number of players/teams to return if return_all is set to 'False'.  Default is '100'.
+    - start (int): The starting point of the list to return the players/teams from if return_all is set to 'False'. Default is '0'.
+    - return_all (bool): Flag to determine whether to return all players/teams or only a single loop with the provided limit. Default is 'True'.
     - input_validation (bool): Flag to enable/disable input validation. Default is 'True'.
 
-    Returns:
-    - list: List of dictionaries containing skater(s) season stats.
-    - None: In case of an error.
     """
+
+    # Assign default parameters
+    default_params = {
+        "skater":{
+            "report": "summary", #if no report is provided, return summary stats
+            "season": None,
+            "start_season": None,
+            "end_season": None,
+            "start_date": None,
+            "end_date": None,
+            "aggregate": True,
+            "franchise_id": None,
+            "opponent_franchise_id": None,
+            "home_or_road": None,
+            "game_result": None,
+            "game_type": 2, # if no game_type is provided, return regular season stats
+            "min_gp": 0,
+            "max_gp": None,
+            "position": None,
+            "shoots_catches": None,
+            "player_name": None,
+            "nationality_code": None,
+            "birth_state_province_code": None,
+            "draft_round": None,
+            "draft_year": None,
+            "is_rookie": None,
+            "is_active": None,
+            "is_in_hall_of_fame": None,
+            "is_game": False,
+            "property": None,
+            "comparator": None,
+            "value": None,
+            "sort": ["points", "goals", "assists", "playerId"],
+            "direction": ["DESC", "DESC", "DESC", "ASC"],
+            "limit": 100,
+            "start": 0,
+            "return_all": True,
+            "input_validation": True,
+        },
+        "goalie":{
+            "report": "summary", #if no report is provided, return summary stats
+            "season": None,
+            "start_season": None,
+            "end_season": None,
+            "start_date": None,
+            "end_date": None,
+            "aggregate": True,
+            "franchise_id": None,
+            "opponent_franchise_id": None,
+            "home_or_road": None,
+            "game_result": None,
+            "game_type": 2, # if no game_type is provided, return regular season stats
+            "min_gp": 0,
+            "max_gp": None,
+            "shoots_catches": None,
+            "player_name": None,
+            "nationality_code": None,
+            "birth_state_province_code": None,
+            "draft_round": None,
+            "draft_year": None,
+            "is_rookie": None,
+            "is_active": None,
+            "is_in_hall_of_fame": None,
+            "is_game": False,
+            "property": None,
+            "comparator": None,
+            "value": None,
+            "sort": ["points", "goals", "assists", "playerId"],
+            "direction": ["DESC", "DESC", "DESC", "ASC"],
+            "limit": 100,
+            "start": 0,
+            "return_all": True,
+            "input_validation": True,
+        },
+        "team":{
+            "report": "summary", #if no report is provided, return summary stats
+            "season": None,
+            "start_season": None,
+            "end_season": None,
+            "start_date": None,
+            "end_date": None,
+            "aggregate": True,
+            "franchise_id": None,
+            "opponent_franchise_id": None,
+            "home_or_road": None,
+            "game_result": None,
+            "game_type": 2, # if no game_type is provided, return regular season stats
+            "min_gp": 0,
+            "max_gp": None,
+            "is_game": False,
+            "property": None,
+            "comparator": None,
+            "value": None,
+            "sort": ["points", "wins", "franchiseId"],
+            "direction": ["DESC", "DESC", "ASC"],
+            "limit": 50,
+            "start": 0,
+            "return_all": True,
+            "input_validation": True,
+        } 
+    }
+
+    # Update parameters based on kwargs provided
+    default_kwargs = default_params.get(key, {})
+    default_kwargs.update(kwargs)
+
+    # Assign variables
+    report = default_kwargs.get("report", True)
+    season = default_kwargs.get("season", True)
+    start_season = default_kwargs.get("start_season", True)
+    end_season = default_kwargs.get("end_season", True)
+    start_date = default_kwargs.get("start_date", True)
+    end_date = default_kwargs.get("end_date", True)
+    franchise_id = default_kwargs.get("franchise_id", True)
+    opponent_franchise_id = default_kwargs.get("opponent_franchise_id", True)
+    home_or_road = default_kwargs.get("home_or_road", True)
+    game_result = default_kwargs.get("game_result", True)
+    game_type = default_kwargs.get("game_type", True)
+    min_gp = default_kwargs.get("min_gp", True)
+    max_gp = default_kwargs.get("max_gp", True)
+    is_game = default_kwargs.get("is_game", True)
+    property = default_kwargs.get("property", True)
+    comparator = default_kwargs.get("comparator", True)
+    value = default_kwargs.get("value", True)
+    sort = default_kwargs.get("sort", True)
+    direction = default_kwargs.get("direction", True)
+    limit = default_kwargs.get("limit", True)
+    start = default_kwargs.get("start", True)
+    return_all = default_kwargs.get("return_all", True)
+    aggregate = default_kwargs.get("aggregate", True)
+    input_validation = default_kwargs.get("input_validation", True)
+    if key is None or key != "team":
+        shoots_catches = default_kwargs.get("shoots_catches", True)
+        player_name = default_kwargs.get("player_name", True)
+        nationality_code = default_kwargs.get("nationality_code", True)
+        birth_state_province_code = default_kwargs.get("birth_state_province_code", True)
+        draft_round = default_kwargs.get("draft_round", True)
+        draft_year = default_kwargs.get("draft_year", True)
+        is_rookie = default_kwargs.get("is_rookie", True)
+        is_active = default_kwargs.get("is_active", True)
+        is_in_hall_of_fame = default_kwargs.get("is_in_hall_of_fame", True)
+        if key != "goalie":
+            position = default_kwargs.get("position", True)
+        
     if input_validation:
+        if key not in ["skater", "goalie", "team"]:
+            raise ValueError(f"Invalid key='{key}'. Valid keys include: 'skater', 'goalie', 'team'.")
+
         if season is None and start_season is None and end_season is None and start_date is None and end_date is None:
             raise ValueError("Provide either a season, a range of seasons, or a range of dates.")
 
@@ -593,6 +748,9 @@ def get_skaters_stats(season=None, report="summary", aggregate=True, min_gp=0, m
         # Validate the maximum games played parameter
         if max_gp is not None and not validate_min_gp(max_gp):
             raise ValueError(f"Invalid max_gp='{max_gp}'. Must be a positive integer.")
+        
+        if max_gp is not None and min_gp is not None and max_gp > min_gp:
+            raise ValueError(f"Invalid max_gp='{max_gp}'. Must be greater than min_gp='{min_gp}'.")
 
         # Validate the aggregate seasons parameter
         if not validate_boolean(aggregate):
@@ -605,19 +763,19 @@ def get_skaters_stats(season=None, report="summary", aggregate=True, min_gp=0, m
                 raise ValueError(f"Invalid season='{season}'. Valid seasons include: {valid_seasons}.")
 
         # Validate the report parameter
-        if not validate_report(report=report, key="skaters"):
-            valid_fields = validate_report(key="skaters", return_fields=True)
+        if not validate_report(report=report, key=key):
+            valid_fields = validate_report(key=key, return_fields=True)
             raise ValueError(f"Invalid report='{report}'. Valid report types include: {valid_fields}.")
         
         # Validate the sort field parameter
         if sort is not None:
-             valid_sort_fields = validate_fields(field=sort, report=report, key="skaters", is_game=is_game, return_fields=True)
+             valid_sort_fields = validate_fields(field=sort, report=report, key=key, is_game=is_game, return_fields=True)
              if not compare_list(field=sort, json_list=valid_sort_fields, return_boolean=True):
                 raise ValueError(f"Invalid sort_field='{sort}'. Valid fields include: {valid_sort_fields}.")
 
         # Validate the sort direction parameter
-        if sort_direction is not None and not validate_sort_direction(sort_direction):
-            raise ValueError(f"Invalid sort_direction='{sort_direction}'. Valid fields are 'ASC', 'DESC'.")
+        if direction is not None and not validate_sort_direction(direction):
+            raise ValueError(f"Invalid sort_direction='{direction}'. Valid fields are 'ASC', 'DESC'.")
 
         # Validate the game type parameter
         if game_type is not None and not validate_game_type(game_type):
@@ -646,47 +804,65 @@ def get_skaters_stats(season=None, report="summary", aggregate=True, min_gp=0, m
                 valid_opp_franchise_ids = validate_franchise_id(franchise_id, return_fields=True)
                 raise ValueError(f"Invalid opponent_franchise_id='{opponent_franchise_id}'. Valid fields include: {valid_opp_franchise_ids}.")
         
-        # Validate position if provided
-        if position is not None and not validate_position(position):
-            raise ValueError(f"Invalid position='{position}'. Valid fields include: 'C', 'L', 'R', 'D'.")
+        if key is None or key != "team":
 
-        # Validate the skater_full_name if provided
-        if skater_full_name is not None:
-            if not validate_players(player=skater_full_name, key="name", is_active=is_active, return_fields=False):
-                valid_names = validate_players(player=skater_full_name, key="name", is_active=is_active, return_fields=True)
-                raise ValueError(f"Invalid skater_full_name='{skater_full_name}'. Valid fields include: {valid_names}.")
+            # Validate the skater_full_name if provided
+            if player_name is not None:
+                if not validate_players(player=player_name, key="name", is_active=is_active, return_fields=False):
+                    valid_names = validate_players(player=player_name, key="name", is_active=is_active, return_fields=True)
+                    raise ValueError(f"Invalid skater_full_name='{player_name}'. Valid fields include: {valid_names}.")
 
-        # Validate is_rookie if provided
-        if is_rookie is not None and not validate_boolean(is_rookie):
-            raise ValueError(f"Invalid is_rookie parameter='{is_rookie}'. Valid fields include: 'True', 'False'.")
+            # Validate is_rookie if provided
+            if is_rookie is not None and not validate_boolean(is_rookie):
+                raise ValueError(f"Invalid is_rookie parameter='{is_rookie}'. Valid fields include: 'True', 'False'.")
+            
+            # Validate is_active if provided
+            if is_active is not None and not validate_boolean(is_active):
+                raise ValueError(f"Invalid is_active='{is_active}'. Valid fields include: 'True', 'False'.")
+            
+            # Validate is_in_hall_of_fame if provided
+            if is_in_hall_of_fame is not None and not validate_boolean(is_in_hall_of_fame):
+                raise ValueError(f"Invalid is_in_hall_of_fame='{is_in_hall_of_fame}'. Valid fields include: 'True', 'False'.")
+            
+            # Validate nationality_code if provided
+            if nationality_code is not None:
+                if not validate_countries(code=nationality_code, key="nationalityCode", return_fields=False):
+                    valid_nationality_codes = validate_countries(code=nationality_code, key="nationalityCode", return_fields=True)
+                    raise ValueError(f"Invalid nationality_code='{nationality_code}'. Valid fields include: {valid_nationality_codes}.")
+            
+            # Validate birth_state_province_code if provided
+            if birth_state_province_code is not None:
+                if not validate_countries(code=birth_state_province_code, key="birthStateProvinceCode", return_fields=False):
+                    valid_birth_state_province_codes = validate_countries(code=birth_state_province_code, key="birthStateProvinceCode", return_fields=True)
+                    raise ValueError(f"Invalid birth_state_province_code='{birth_state_province_code}'. Valid fields include: {valid_birth_state_province_codes}.")
+                
+            if shoots_catches is not None and not validate_shoots(shoots_catches):
+                raise ValueError(f"Invalid shoots='{shoots_catches}'. Valid fields include: 'L', 'R'.")
+            
+            # Validate draft_round if provided
+            if draft_round is not None:
+                if not validate_draftrounds(draft_round=draft_round, key="rounds", return_fields=False):
+                    valid_draft_rounds = validate_draftrounds(draft_round=draft_round, key="rounds", return_fields=True)
+                    raise ValueError(f"Invalid draft_round='{draft_round}'. Valid fields include: {valid_draft_rounds}.")
+            
+            # Validate draft_year if provided
+            if draft_year is not None:
+                if not validate_draftrounds(draft_round=draft_year, key="draftYear", return_fields=False):
+                    valid_draft_years = validate_draftrounds(draft_round=draft_year, key="draftYear", return_fields=True)
+                    raise ValueError(f"Invalid draft_year='{draft_year}'. Valid fields include: {valid_draft_years}.")
+                
+            if key != "goalie":
+                # Validate position if provided
+                if position is not None and not validate_position(position):
+                    raise ValueError(f"Invalid position='{position}'. Valid fields include: 'C', 'L', 'R', 'D'.")
 
         # Validate skater_limit
-        if not validate_integer(skater_limit) or not int(skater_limit)>0:
-            raise ValueError(f"Invalid skater_limit='{skater_limit}'. Must be a positive integer.")
+        if not validate_integer(limit) or not int(limit)>0:
+            raise ValueError(f"Invalid skater_limit='{limit}'. Must be a positive integer.")
         
         # Validate start
         if not validate_integer(start) or not int(start)>=0:
             raise ValueError(f"Invalid start='{start}'. Must be a positive integer.")
-        
-        # Validate is_active if provided
-        if is_active is not None and not validate_boolean(is_active):
-            raise ValueError(f"Invalid is_active='{is_active}'. Valid fields include: 'True', 'False'.")
-        
-        # Validate is_in_hall_of_fame if provided
-        if is_in_hall_of_fame is not None and not validate_boolean(is_in_hall_of_fame):
-            raise ValueError(f"Invalid is_in_hall_of_fame='{is_in_hall_of_fame}'. Valid fields include: 'True', 'False'.")
-        
-        # Validate nationality_code if provided
-        if nationality_code is not None:
-            if not validate_countries(code=nationality_code, key="nationalityCode", return_fields=False):
-                valid_nationality_codes = validate_countries(code=nationality_code, key="nationalityCode", return_fields=True)
-                raise ValueError(f"Invalid nationality_code='{nationality_code}'. Valid fields include: {valid_nationality_codes}.")
-        
-        # Validate birth_state_province_code if provided
-        if birth_state_province_code is not None:
-            if not validate_countries(code=birth_state_province_code, key="birthStateProvinceCode", return_fields=False):
-                valid_birth_state_province_codes = validate_countries(code=birth_state_province_code, key="birthStateProvinceCode", return_fields=True)
-                raise ValueError(f"Invalid birth_state_province_code='{birth_state_province_code}'. Valid fields include: {valid_birth_state_province_codes}.")
         
         # Validate home_or_road if provided
         if home_or_road is not None and not validate_home_road(home_or_road):
@@ -696,21 +872,6 @@ def get_skaters_stats(season=None, report="summary", aggregate=True, min_gp=0, m
         if game_result is not None and not validate_game_result(game_result):
             raise ValueError(f"Invalid game_result='{game_result}'. Valid fields include: 'W', 'L', 'O'.")
         
-        # Validate draft_round if provided
-        if draft_round is not None:
-            if not validate_draftrounds(draft_round=draft_round, key="rounds", return_fields=False):
-                valid_draft_rounds = validate_draftrounds(draft_round=draft_round, key="rounds", return_fields=True)
-                raise ValueError(f"Invalid draft_round='{draft_round}'. Valid fields include: {valid_draft_rounds}.")
-        
-        # Validate draft_year if provided
-        if draft_year is not None:
-            if not validate_draftrounds(draft_round=draft_year, key="draftYear", return_fields=False):
-                valid_draft_years = validate_draftrounds(draft_round=draft_year, key="draftYear", return_fields=True)
-                raise ValueError(f"Invalid draft_year='{draft_year}'. Valid fields include: {valid_draft_years}.")
-        
-        if shoots is not None and not validate_string(shoots):
-            raise ValueError(f"Invalid shoots='{shoots}'. Valid fields include: 'L', 'R'.")
-
         # Validate start_date if provided
         if start_date is not None:
             formatted_start_date = format_date(start_date)
@@ -732,7 +893,7 @@ def get_skaters_stats(season=None, report="summary", aggregate=True, min_gp=0, m
             raise ValueError(f"Invalid return_all='{return_all}'. Valid fields include: 'True', 'False'.")
 
     # Construct the URL for the 'skater' endpoint
-    base_url = "https://api.nhle.com/stats/rest/en/skater/" + report
+    base_url = "https://api.nhle.com/stats/rest/en/" + key + "/" + report
 
     # Construct the cayenneExp
     if start_season is not None and end_season is not None:
@@ -755,360 +916,42 @@ def get_skaters_stats(season=None, report="summary", aggregate=True, min_gp=0, m
     if opponent_franchise_id is not None:
         cayenneExp += f" and opponentFranchiseId={int(opponent_franchise_id)}"
 
-    if position is not None:
-        if isinstance(position, str):
-            cayenneExp += f" and positionCode='{position}'"
-        elif isinstance(position, list):
-            position_exp = " or ".join([f"positionCode='{pos}'" for pos in position])
-            cayenneExp += f" and ({position_exp})"
-
-    if skater_full_name is not None:
-        cayenneExp += f" and skaterFullName likeIgnoreCase '%{skater_full_name}%'"
-
-    if is_rookie is not None:
-        cayenneExp += f" and isRookie={'1' if is_rookie else '0'}"
-
-    if is_active is not None:
-        cayenneExp += f" and active={'1' if is_active else '0'}"
-
-    if is_in_hall_of_fame is not None:
-        cayenneExp += f" and isInHallOfFame={'1' if is_in_hall_of_fame else '0'}"
-
-    if birth_state_province_code is not None:
-        cayenneExp += f" and birthStateProvinceCode='{birth_state_province_code}'"
-    
-    if nationality_code is not None:
-        cayenneExp += f" and nationalityCode='{nationality_code}'"
-
-    if home_or_road is not None:
-        cayenneExp += f" and homeRoad='{home_or_road.upper()}'"
-
-    if game_result is not None:
-        cayenneExp += f" and decision='{game_result.upper()}'"
-
-    if draft_round is not None:
-        cayenneExp += f" and draftRound={draft_round}"
-
-    if draft_year is not None:
-        cayenneExp += f" and draftYear='{draft_year}'"
-
-    if shoots is not None:
-        cayenneExp += f" and shootsCatches='{shoots.upper()}'"
-
-    # Construct the factCayenneExp 
-    factCayenneExp = f"gamesPlayed>={min_gp}"
-
-    if max_gp is not None:
-        factCayenneExp += f" and gamesPlayed<={max_gp}"
-    
-    if property is not None:
-        # Convert to lists if they are not already
-        property = property if isinstance(property, list) else [property]
-        comparator = comparator if isinstance(comparator, list) else [comparator]
-        value = value if isinstance(value, list) else [value]
-
-        # Construct the factCayenneExp parameters
-        for prop, comp, val in zip(property, comparator, value):
-            factCayenneExp += f" and {prop}{comp}{val}"
-
-    # Construct the query parameters
-    params = {
-        "isAggregate": str(aggregate),
-        "isGame": str(is_game),
-        "start": "0",
-        "limit": str(skater_limit),
-        "factCayenneExp": factCayenneExp,
-        "cayenneExp": cayenneExp
-    }
-
-    if sort is not None:
-        # Convert sort and direction to lists if they are not already
-        sort = sort if isinstance(sort, list) else [sort]
-        sort_direction = sort_direction if isinstance(sort_direction, list) else [sort_direction]
-
-        # Construct the sort parameters
-        sort_params = [{"property": field, "direction": dir} for field, dir in zip(sort, sort_direction)]
-        sort_json = json.dumps(sort_params)
-        params["sort"] = sort_json
-
-    # Initialize an empty list to store the results
-    all_skaters_data = []
-
-    # Loop over multiple times to fetch all skaters
-    if return_all:
-        while True:
-            # Construct the complete URL
-            url = f"{base_url}?{'&'.join([f'{key}={value}' for key, value in params.items()])}"
-
-            # Make API request
-            data = make_api_request(url, input_validation=input_validation)
-
-            if data is None:
-                return None
-
-            all_skaters_data.extend(data.get("data", []))
-
-            # Check if there are more players to fetch
-            if len(all_skaters_data) >= data.get("total", 0):
-                break
-
-            # Update the starting position for the next request
-            params["start"] = str(len(all_skaters_data))
-
-        return all_skaters_data
-    else:
-        # Update the starting position based on the start provided
-        params["start"] = str(start)
-
-        # Construct the complete URL
-        url = f"{base_url}?{'&'.join([f'{key}={value}' for key, value in params.items()])}"
-
-        # Make API request
-        data = make_api_request(url, input_validation=input_validation)
-
-        return data.get("data", None)
-
-def get_goalies_stats(season=None, report="summary", aggregate=True, min_gp=0, max_gp=None, sort=["points", "goals", "assists", "playerId"], sort_direction=["DESC", "DESC", "DESC", "ASC"], game_type=2, start_season=None, end_season=None, is_game=False, start_date=None, end_date=None, franchise_id=None, opponent_franchise_id=None, position=None, goalie_full_name=None, is_rookie=None, is_active=None, is_in_hall_of_fame=None, nationality_code=None, birth_state_province_code=None, home_or_road=None, game_result=None, draft_round=None, draft_year=None, catches=None, property=None, comparator=None, value=None, goalie_limit=100, start=0, return_all=True, input_validation=True):
-    """
-    Fetch data from the NHL API 'goalie' endpoint.
-
-    Parameters:
-    - season (str, optional): The season to return the goalies stats from (e.g., '20232024').
-    - report (str): The report type to return. Available report types are 'summary', 'bios', 'faceoffpercentages', 'faceoffwins', 'goalsForAgainst', 'realtime', 'penalties', 'penaltykill', 'penaltyShots', 'powerplay', 'puckPossessions', 'summaryshooting', 'percentages', 'scoringRates', 'scoringpergame', 'shootout', 'shottype', 'timeonice'.
-    - aggregate (bool): Boolean option to aggregate goalies stats over multiple seasons or games. Default is 'True'.
-    - min_gp (int): The minimum number of games played. Default is '0'.
-    - max_gp (int, optional): The maximum number of games played. Default is 'None'.
-    - sort (str or list, optional): The sort field(s) for the query. Can be a single string or a list of strings. 'None' returns goalies with no sorting.
-    - sor_direction (str or list): The sort direction(s) for the query. Can be a single string or a list of strings.
-    - game_type (int, optional): The type of game ('1' for pre-season, '2' for regular season, '3' for playoffs, '4' for all-star games). Default is '2'.
-    - start_season (str, optional): The starting season of the range. Default is 'None'.
-    - end_season (str, optional): The ending season of the range. Default is 'None'.
-    - is_game (bool): The flag for providing a range of dates. Default is 'False'.
-    - start_date(str, optional): The starting date of the range (YYYY-MM-DD). Default is 'None'.
-    - end_date(str, optional): The ending date of the range (YYYY-MM-DD). Default is 'None'.
-    - franchise_id (int, optional): The franchise identifier to return the goalies stats from. Default is 'None' which returns all franchises.
-    - opponent_franchise_id (int, optional): The opponent franchise identifier to return the goalies stats from. Default is 'None' which returns all opponent franchises.
-    - position (str or list, optional): The positions of the goalies. Default is 'None' which returns all positions.
-    - goalie_full_name (str, optional): The full name of the goalie to filter. Default is 'None' which returns all goalies.
-    - is_rookie (bool, optional): Whether the goalies are a rookie (True to return rookies, False to exclude rookies / return veterans). Default is 'None' which returns all goalies.
-    - is_active (bool, optional): Whether the goalies are active (True to return active goalies, False to return incactive goalies). Default is 'None' which returns all goalies.
-    - is_in_hall_of_fame (bool, optional): Wether the goalies are in the hall of fame. Default is 'None' which returns all goalies.
-    - nationality_code (str, optional): The nationlity code of the goalies to return the stats from (e.g., 'CAN'). Default is 'None' which returns all nationalities.
-    - birth_state_province_code (str, optional): The birth state province code of the goalies to return the stats from (e.g., 'ON'). Default is 'None' which returns all birth state provinces.
-    - home_or_road (str, optional): The goalies stats from home or away games ('H' for home, 'R' for road/away).  Default is 'None' which returns all games.
-    - game_result (str, optional): The goalies stats from games with the provided result ('W' for wins, 'L' for losses, and 'O' for overtime losses). Default is 'None' which returns all game results.
-    - draft_round (str or int, optional): The draft round of the goalies to return the stats from. Default is 'None' which returns all rounds.
-    - draft_year (str or int, optional): The draft year of the goalies to return the stats from (e.g., '2012'). Note: if no draft round is input, returns from first round, and only returns data for a single draft round.  Default is 'None' which returns all draft years.
-    - catches (str, optional): The handedness of the goalies to return the stats from ('L' for left, 'R' for right). Default is 'None' which returns all goalies.
-    - property (str or list, optional): The property to filter by (note: works alongside a provided comparator and value). Default is 'None'.
-    - comparator (str or list, optional): The comparator to filter by ('>=', '=', and '<=') (note: works alongside a provided comparator and value). Default is 'None'.
-    - value (str or int or list, optional): The value to filter by (note: works alongside a provided comparator and value). Default is 'None'.
-    - goalie_limit (int): The max number of goalies in one loop (loops to return all goalies regardless of limit).  Default is '100'.
-    - start (int): The starting point of the list to return the goalies from if return_all is set to 'False'. Default is '0'.
-    - return_all (bool): Flag to determine whether to return all goalies or only a single loop of skaters with the provided limit. Default is 'True'.
-    - input_validation (bool): Flag to enable/disable input validation. Default is 'True'.
-
-    Returns:
-    - list: List of dictionaries containing goalie(s) season stats.
-    - None: In case of an error.
-    """
-    if input_validation:
-        if season is None and start_season is None and end_season is None and start_date is None and end_date is None:
-            raise ValueError("Provide either a season, a range of seasons, or a range of dates.")
-
-        # Validate the minimum games played parameter
-        if not validate_min_gp(min_gp):
-            raise ValueError(f"Invalid min_gp='{min_gp}'. Must be a positive integer.")
+    if key is None or key != "team":
         
-        # Validate the maximum games played parameter
-        if max_gp is not None and not validate_min_gp(max_gp):
-            raise ValueError(f"Invalid max_gp='{max_gp}'. Must be a positive integer.")
+        if key != "goalie":
+            if position is not None:
+                if isinstance(position, str):
+                    cayenneExp += f" and positionCode='{position}'"
+                elif isinstance(position, list):
+                    position_exp = " or ".join([f"positionCode='{pos}'" for pos in position])
+                    cayenneExp += f" and ({position_exp})"
 
-        # Validate the aggregate seasons parameter
-        if not validate_boolean(aggregate):
-            raise ValueError(f"Invalid aggregate='{aggregate}'. Valid fields include: 'True', 'False'.")
+        if player_name is not None:
+            cayenneExp += f" and skaterFullName likeIgnoreCase '%{player_name}%'"
 
-        # Validate the season parameter for player
-        if season is not None:
-            if not validate_season(season=season, return_fields=False):
-                valid_seasons = validate_season(season=season, return_fields=True)
-                raise ValueError(f"Invalid season='{season}'. Valid seasons include: {valid_seasons}.")
+        if is_rookie is not None:
+            cayenneExp += f" and isRookie={'1' if is_rookie else '0'}"
 
-        # Validate the report parameter
-        if not validate_report(report=report, key="goalies"):
-            valid_fields = validate_report(key="goalies", return_fields=True)
-            raise ValueError(f"Invalid report='{report}'. Valid report types include: {valid_fields}.")
-        
-        # Validate the sort field parameter
-        if sort is not None:
-             valid_sort_fields = validate_fields(field=sort, report=report, key="skaters", is_game=is_game, return_fields=True)
-             if not compare_list(field=sort, json_list=valid_sort_fields, return_boolean=True):
-                raise ValueError(f"Invalid sort_field='{sort}'. Valid fields include: {valid_sort_fields}.")
+        if is_active is not None:
+            cayenneExp += f" and active={'1' if is_active else '0'}"
 
-        # Validate the sort direction parameter
-        if sort_direction is not None and not validate_sort_direction(sort_direction):
-            raise ValueError(f"Invalid sort_direction='{sort_direction}'. Valid fields are 'ASC', 'DESC'.")
+        if is_in_hall_of_fame is not None:
+            cayenneExp += f" and isInHallOfFame={'1' if is_in_hall_of_fame else '0'}"
 
-        # Validate the game type parameter
-        if game_type is not None and not validate_game_type(game_type):
-            raise ValueError(f"Invalid game_type='{game_type}'. Valid fields are '1', '2', '3', '4'.")
-
-        # Validate start_season and end_season if provided
-        if start_season is not None:
-            if not validate_season(season=start_season, return_fields=False):
-                valid_seasons = validate_season(season=start_season, return_fields=True)
-                raise ValueError(f"Invalid start_season='{start_season}'. Valid seasons include: {valid_seasons}")
-
-        if end_season is not None:
-            if not validate_season(season=end_season, return_fields=False):
-                valid_seasons = validate_season(season=end_season, return_fields=True)
-                raise ValueError(f"Invalid end_season='{end_season}'. Valid seasons include: {valid_seasons}")
-        
-        # Validate the franchise_id if provided
-        if franchise_id is not None:
-            if not validate_franchise_id(franchise_id, return_fields=False):
-                valid_franchise_ids = validate_franchise_id(franchise_id, return_fields=True)
-                raise ValueError(f"Invalid franchise_id='{franchise_id}'. Valid fields include: {valid_franchise_ids}.")
-        
-        # Validate the franchise_id if provided
-        if opponent_franchise_id is not None:
-            if not validate_franchise_id(opponent_franchise_id, return_fields=False):
-                valid_opp_franchise_ids = validate_franchise_id(franchise_id, return_fields=True)
-                raise ValueError(f"Invalid opponent_franchise_id='{opponent_franchise_id}'. Valid fields include: {valid_opp_franchise_ids}.")
-        
-        # Validate position if provided
-        if position is not None and not validate_position(position):
-            raise ValueError(f"Invalid position='{position}'. Valid fields include: 'C', 'L', 'R', 'D'.")
-
-        # Validate the skater_full_name if provided
-        if goalie_full_name is not None:
-            if not validate_players(player=goalie_full_name, key="name", is_active=is_active, return_fields=False):
-                valid_names = validate_players(player=goalie_full_name, key="name", is_active=is_active, return_fields=True)
-                raise ValueError(f"Invalid skater_full_name='{goalie_full_name}'. Valid fields include: {valid_names}.")
-
-        # Validate is_rookie if provided
-        if is_rookie is not None and not validate_boolean(is_rookie):
-            raise ValueError(f"Invalid is_rookie parameter='{is_rookie}'. Valid fields include: 'True', 'False'.")
-
-        # Validate skater_limit
-        if not validate_integer(goalie_limit) or not int(goalie_limit)>0:
-            raise ValueError(f"Invalid skater_limit='{goalie_limit}'. Must be a positive integer.")
-        
-        # Validate start
-        if not validate_integer(start) or not int(start)>=0:
-            raise ValueError(f"Invalid start='{start}'. Must be a positive integer.")
-
-        # Validate is_active if provided
-        if is_active is not None and not validate_boolean(is_active):
-            raise ValueError(f"Invalid is_active='{is_active}'. Valid fields include: 'True', 'False'.")
-        
-        # Validate is_in_hall_of_fame if provided
-        if is_in_hall_of_fame is not None and not validate_boolean(is_in_hall_of_fame):
-            raise ValueError(f"Invalid is_in_hall_of_fame='{is_in_hall_of_fame}'. Valid fields include: 'True', 'False'.")
-        
-        # Validate nationality_code if provided
-        if nationality_code is not None:
-            if not validate_countries(code=nationality_code, key="nationalityCode", return_fields=False):
-                valid_nationality_codes = validate_countries(code=nationality_code, key="nationalityCode", return_fields=True)
-                raise ValueError(f"Invalid nationality_code='{nationality_code}'. Valid fields include: {valid_nationality_codes}.")
-        
-        # Validate birth_state_province_code if provided
         if birth_state_province_code is not None:
-            if not validate_countries(code=birth_state_province_code, key="birthStateProvinceCode", return_fields=False):
-                valid_birth_state_province_codes = validate_countries(code=birth_state_province_code, key="birthStateProvinceCode", return_fields=True)
-                raise ValueError(f"Invalid birth_state_province_code='{birth_state_province_code}'. Valid fields include: {valid_birth_state_province_codes}.")
+            cayenneExp += f" and birthStateProvinceCode='{birth_state_province_code}'"
         
-        # Validate home_or_road if provided
-        if home_or_road is not None and not validate_home_road(home_or_road):
-            raise ValueError(f"Invalid home_or_road='{home_or_road}'. Valid fields include: 'H', 'R'.")
-        
-        # Validate game_result if provided
-        if game_result is not None and not validate_game_result(game_result):
-            raise ValueError(f"Invalid game_result='{game_result}'. Valid fields include: 'W', 'L', 'O'.")
-        
-        # Validate draft_round if provided
+        if nationality_code is not None:
+            cayenneExp += f" and nationalityCode='{nationality_code}'"
+
+        if shoots_catches is not None:
+            cayenneExp += f" and shootsCatches='{shoots_catches.upper()}'"
+
         if draft_round is not None:
-            if not validate_draftrounds(draft_round=draft_round, key="rounds", return_fields=False):
-                valid_draft_rounds = validate_draftrounds(draft_round=draft_round, key="rounds", return_fields=True)
-                raise ValueError(f"Invalid draft_round='{draft_round}'. Valid fields include: {valid_draft_rounds}.")
-        
-        # Validate draft_year if provided
+            cayenneExp += f" and draftRound={draft_round}"
+
         if draft_year is not None:
-            if not validate_draftrounds(draft_round=draft_year, key="draftYear", return_fields=False):
-                valid_draft_years = validate_draftrounds(draft_round=draft_year, key="draftYear", return_fields=True)
-                raise ValueError(f"Invalid draft_year='{draft_year}'. Valid fields include: {valid_draft_years}.")
-        
-        if catches is not None and not validate_string(catches):
-            raise ValueError(f"Invalid shoots='{catches}'. Valid fields include: 'L', 'R'.")
-
-        # Validate start_date if provided
-        if start_date is not None:
-            formatted_start_date = format_date(start_date)
-            if not formatted_start_date:
-                raise ValueError(f"Invalid start_date='{start_date}'. Provide the date in 'YYYY-MM-DD' format.")
-        
-        # Validate end_date if provided
-        if end_date is not None:
-            formatted_end_date = format_date(end_date)
-            if not formatted_end_date:
-                raise ValueError(f"Invalid end_date='{end_date}'. Provide the date in 'YYYY-MM-DD' format.")
-        
-        # Validate is_game
-        if not validate_boolean(is_game):
-            raise ValueError(f"Invalid is_game='{is_game}'. Valid fields include: 'True', 'False'.")
-
-        # Validate return_all
-        if not validate_boolean(return_all):
-            raise ValueError(f"Invalid return_all='{return_all}'. Valid fields include: 'True', 'False'.")
-
-    # Construct the URL for the 'goalie' endpoint
-    base_url = "https://api.nhle.com/stats/rest/en/goalie/" + report
-
-    # Construct the cayenneExp
-    if start_season is not None and end_season is not None:
-        cayenneExp = f"seasonId<={end_season} and seasonId>={start_season}"
-    elif start_date is not None and end_date is not None:
-        season = None
-        is_game = True
-        formatted_start_date = format_date(start_date)
-        formatted_end_date = format_date(end_date)
-        cayenneExp = f"gameDate<='{formatted_end_date}' and gameDate>='{formatted_start_date}'"
-    elif season is not None:
-        cayenneExp = f"seasonId={season}"
-
-    if game_type is not None:
-        cayenneExp += f" and gameTypeId={game_type}"
-    
-    if franchise_id is not None:
-        cayenneExp += f" and franchiseId={int(franchise_id)}"
-
-    if opponent_franchise_id is not None:
-        cayenneExp += f" and opponentFranchiseId={int(opponent_franchise_id)}"
-
-    if position is not None:
-        if isinstance(position, str):
-            cayenneExp += f" and positionCode='{position}'"
-        elif isinstance(position, list):
-            position_exp = " or ".join([f"positionCode='{pos}'" for pos in position])
-            cayenneExp += f" and ({position_exp})"
-
-    if goalie_full_name is not None:
-        cayenneExp += f" and skaterFullName likeIgnoreCase '%{goalie_full_name}%'"
-
-    if is_rookie is not None:
-        cayenneExp += f" and isRookie={'1' if is_rookie else '0'}"
-
-    if is_active is not None:
-        cayenneExp += f" and active={'1' if is_active else '0'}"
-
-    if is_in_hall_of_fame is not None:
-        cayenneExp += f" and isInHallOfFame={'1' if is_in_hall_of_fame else '0'}"
-
-    if birth_state_province_code is not None:
-        cayenneExp += f" and birthStateProvinceCode='{birth_state_province_code}'"
-    
-    if nationality_code is not None:
-        cayenneExp += f" and nationalityCode='{nationality_code}'"
+            cayenneExp += f" and draftYear='{draft_year}'"
 
     if home_or_road is not None:
         cayenneExp += f" and homeRoad='{home_or_road.upper()}'"
@@ -1116,15 +959,6 @@ def get_goalies_stats(season=None, report="summary", aggregate=True, min_gp=0, m
     if game_result is not None:
         cayenneExp += f" and decision='{game_result.upper()}'"
 
-    if draft_round is not None:
-        cayenneExp += f" and draftRound={draft_round}"
-
-    if draft_year is not None:
-        cayenneExp += f" and draftYear='{draft_year}'"
-
-    if catches is not None:
-        cayenneExp += f" and shootsCatches='{catches.upper()}'"
-
     # Construct the factCayenneExp 
     factCayenneExp = f"gamesPlayed>={min_gp}"
 
@@ -1146,7 +980,7 @@ def get_goalies_stats(season=None, report="summary", aggregate=True, min_gp=0, m
         "isAggregate": str(aggregate),
         "isGame": str(is_game),
         "start": "0",
-        "limit": str(goalie_limit),
+        "limit": str(limit),
         "factCayenneExp": factCayenneExp,
         "cayenneExp": cayenneExp
     }
@@ -1154,17 +988,17 @@ def get_goalies_stats(season=None, report="summary", aggregate=True, min_gp=0, m
     if sort is not None:
         # Convert sort and direction to lists if they are not already
         sort = sort if isinstance(sort, list) else [sort]
-        sort_direction = sort_direction if isinstance(sort_direction, list) else [sort_direction]
+        direction = direction if isinstance(direction, list) else [direction]
 
         # Construct the sort parameters
-        sort_params = [{"property": field, "direction": dir} for field, dir in zip(sort, sort_direction)]
+        sort_params = [{"property": field, "direction": dir} for field, dir in zip(sort, direction)]
         sort_json = json.dumps(sort_params)
         params["sort"] = sort_json
 
     # Initialize an empty list to store the results
-    all_goalies_data = []
+    all_data = []
 
-    # Loop over multiple times to fetch all skaters
+    # Loop over multiple times to fetch all skaters/goalies/teams
     if return_all:
         while True:
             # Construct the complete URL
@@ -1176,251 +1010,16 @@ def get_goalies_stats(season=None, report="summary", aggregate=True, min_gp=0, m
             if data is None:
                 return None
 
-            all_goalies_data.extend(data.get("data", []))
+            all_data.extend(data.get("data", []))
 
             # Check if there are more players to fetch
-            if len(all_goalies_data) >= data.get("total", 0):
+            if len(all_data) >= data.get("total", 0):
                 break
 
             # Update the starting position for the next request
-            params["start"] = str(len(all_goalies_data))
+            params["start"] = str(len(all_data))
 
-        return all_goalies_data
-    else:
-        # Update the starting position based on the start provided
-        params["start"] = str(start)
-
-        # Construct the complete URL
-        url = f"{base_url}?{'&'.join([f'{key}={value}' for key, value in params.items()])}"
-
-        # Make API request
-        data = make_api_request(url, input_validation=input_validation)
-
-        return data.get("data", None)
-
-def get_teams_stats(season=None, report="summary", aggregate=True, min_gp=0, max_gp=None, sort=["points", "wins", "franchiseId"], sort_direction=["DESC", "DESC", "ASC"], game_type=2, start_season=None, end_season=None, is_game=False, start_date=None, end_date=None, franchise_id=None, opponent_franchise_id=None, home_or_road=None, game_result=None, property=None, comparator=None, value=None, team_limit=50, start=0, return_all=True, input_validation=True):
-    """
-    Fetch data from the NHL API skater 'team' endpoint.
-
-    Parameters:
-    - season (str, optional): The season to return the tams stats from (e.g., '20232024').
-    - report (str): The report type to return. Available report types are 'summary', 'bios', 'faceoffpercentages', 'faceoffwins', 'goalsForAgainst', 'realtime', 'penalties', 'penaltykill', 'penaltyShots', 'powerplay', 'puckPossessions', 'summaryshooting', 'percentages', 'scoringRates', 'scoringpergame', 'shootout', 'shottype', 'timeonice'.
-    - aggregate (bool): Boolean option to aggregate teams stats over multiple seasons or games. Default is 'True'.
-    - min_gp (int): The minimum number of games played. Default is '0'.
-    - max_gp (int, optional): The maximum number of games played. Default is 'None'.
-    - sort (str or list, optional): The sort field(s) for the query. Can be a single string or a list of strings. 'None' returns teams with no sorting.
-    - sort_direction (str or list): The sort direction(s) for the query. Can be a single string or a list of strings.
-    - game_type (int, optional): The type of game ('1' for pre-season, '2' for regular season, '3' for playoffs, '4' for all-star games). Default is '2'.
-    - start_season (str, optional): The starting season of the range. Default is 'None'.
-    - end_season (str, optional): The ending season of the range. Default is 'None'.
-    - is_game (bool): The flag for providing a range of dates. Default is 'False'.
-    - start_date(str, optional): The starting date of the range (YYYY-MM-DD). Default is 'None'.
-    - end_date(str, optional): The ending date of the range (YYYY-MM-DD). Default is 'None'.
-    - franchise_id (int, optional): The franchise identifier to return the teams stats from. Default is 'None' which returns all franchises.
-    - opponent_franchise_id (int, optional): The opponent franchise identifier to return the teams stats from. Default is 'None' which returns all opponent franchises.
-    - home_or_road (str, optional): The teams stats from home or away games ('H' for home, 'R' for road/away).  Default is 'None' which returns all games.
-    - game_result (str, optional): The teams stats from games with the provided result ('W' for wins, 'L' for losses, and 'O' for overtime losses). Default is 'None' which returns all game results.
-    - property (str or list, optional): The property to filter by (note: works alongside a provided comparator and value). Default is 'None'.
-    - comparator (str or list, optional): The comparator to filter by ('>=', '=', and '<=') (note: works alongside a provided comparator and value). Default is 'None'.
-    - value (str or int or list, optional): The value to filter by (note: works alongside a provided comparator and value). Default is 'None'.
-    - team_limit (int): The max number of teams in one loop (loops to return all teams regardless of limit).  Default is '50'.
-    - start (int): The starting point of the list to return the teams from if return_all is set to 'False'. Default is '0'.
-    - return_all (bool): Flag to determine whether to return all teams or only a single loop of teams with the provided limit. Default is 'True'.
-    - input_validation (bool): Flag to enable/disable input validation. Default is 'True'.
-
-    Returns:
-    - list: List of dictionaries containing skater(s) season stats.
-    - None: In case of an error.
-    """
-    if input_validation:
-        if season is None and start_season is None and end_season is None and start_date is None and end_date is None:
-            raise ValueError("Provide either a season, a range of seasons, or a range of dates.")
-
-        # Validate the minimum games played parameter
-        if not validate_min_gp(min_gp):
-            raise ValueError(f"Invalid min_gp='{min_gp}'. Must be a positive integer.")
-        
-        # Validate the maximum games played parameter
-        if max_gp is not None and not validate_min_gp(max_gp):
-            raise ValueError(f"Invalid max_gp='{max_gp}'. Must be a positive integer.")
-
-        # Validate the aggregate seasons parameter
-        if not validate_boolean(aggregate):
-            raise ValueError(f"Invalid aggregate='{aggregate}'. Valid fields include: 'True', 'False'.")
-
-        # Validate the season parameter for player
-        if season is not None:
-            if not validate_season(season=season, return_fields=False):
-                valid_seasons = validate_season(season=season, return_fields=True)
-                raise ValueError(f"Invalid season='{season}'. Valid seasons include: {valid_seasons}.")
-
-        # Validate the report parameter
-        if not validate_report(report=report, key="teams"):
-            valid_fields = validate_report(key="teams", return_fields=True)
-            raise ValueError(f"Invalid report='{report}'. Valid report types include: {valid_fields}.")
-        
-        # Validate the sort field parameter
-        if sort is not None:
-             valid_sort_fields = validate_fields(field=sort, report=report, key="teams", is_game=is_game, return_fields=True)
-             if not compare_list(field=sort, json_list=valid_sort_fields, return_boolean=True):
-                raise ValueError(f"Invalid sort_field='{sort}'. Valid fields include: {valid_sort_fields}.")
-
-        # Validate the sort direction parameter
-        if sort_direction is not None and not validate_sort_direction(sort_direction):
-            raise ValueError(f"Invalid sort_direction='{sort_direction}'. Valid fields are 'ASC', 'DESC'.")
-
-        # Validate the game type parameter
-        if game_type is not None and not validate_game_type(game_type):
-            raise ValueError(f"Invalid game_type='{game_type}'. Valid fields are '1', '2', '3', '4'.")
-
-        # Validate start_season and end_season if provided
-        if start_season is not None:
-            if not validate_season(season=start_season, return_fields=False):
-                valid_seasons = validate_season(season=start_season, return_fields=True)
-                raise ValueError(f"Invalid start_season='{start_season}'. Valid seasons include: {valid_seasons}")
-
-        if end_season is not None:
-            if not validate_season(season=end_season, return_fields=False):
-                valid_seasons = validate_season(season=end_season, return_fields=True)
-                raise ValueError(f"Invalid end_season='{end_season}'. Valid seasons include: {valid_seasons}")
-        
-        # Validate the franchise_id if provided
-        if franchise_id is not None:
-            if not validate_franchise_id(franchise_id, return_fields=False):
-                valid_franchise_ids = validate_franchise_id(franchise_id, return_fields=True)
-                raise ValueError(f"Invalid franchise_id='{franchise_id}'. Valid fields include: {valid_franchise_ids}.")
-        
-        # Validate the franchise_id if provided
-        if opponent_franchise_id is not None:
-            if not validate_franchise_id(opponent_franchise_id, return_fields=False):
-                valid_opp_franchise_ids = validate_franchise_id(franchise_id, return_fields=True)
-                raise ValueError(f"Invalid opponent_franchise_id='{opponent_franchise_id}'. Valid fields include: {valid_opp_franchise_ids}.")
-
-        # Validate team_limit
-        if not validate_integer(team_limit) or not int(team_limit)>0:
-            raise ValueError(f"Invalid team_limit='{team_limit}'. Must be a positive integer.")
-
-        # Validate start
-        if not validate_integer(start) or not int(start)>=0:
-            raise ValueError(f"Invalid start='{start}'. Must be a positive integer.")
-
-        # Validate home_or_road if provided
-        if home_or_road is not None and not validate_home_road(home_or_road):
-            raise ValueError(f"Invalid home_or_road='{home_or_road}'. Valid fields include: 'H', 'R'.")
-        
-        # Validate game_result if provided
-        if game_result is not None and not validate_game_result(game_result):
-            raise ValueError(f"Invalid game_result='{game_result}'. Valid fields include: 'W', 'L', 'O'.")
-        
-        # Validate start_date if provided
-        if start_date is not None:
-            formatted_start_date = format_date(start_date)
-            if not formatted_start_date:
-                raise ValueError(f"Invalid start_date='{start_date}'. Provide the date in 'YYYY-MM-DD' format.")
-        
-        # Validate end_date if provided
-        if end_date is not None:
-            formatted_end_date = format_date(end_date)
-            if not formatted_end_date:
-                raise ValueError(f"Invalid end_date='{end_date}'. Provide the date in 'YYYY-MM-DD' format.")
-        
-        # Validate is_game
-        if not validate_boolean(is_game):
-            raise ValueError(f"Invalid is_game='{is_game}'. Valid fields include: 'True', 'False'.")
-
-        # Validate return_all
-        if not validate_boolean(return_all):
-            raise ValueError(f"Invalid return_all='{return_all}'. Valid fields include: 'True', 'False'.")
-
-    # Construct the URL for the 'skater' endpoint
-    base_url = "https://api.nhle.com/stats/rest/en/team/" + report
-
-    # Construct the cayenneExp
-    if start_season is not None and end_season is not None:
-        cayenneExp = f"seasonId<={end_season} and seasonId>={start_season}"
-    elif start_date is not None and end_date is not None:
-        season = None
-        is_game = True
-        cayenneExp = f"gameDate<='{end_date}' and gameDate>='{start_date}'"
-    elif season is not None:
-        cayenneExp = f"seasonId={season} and seasonId={season}"
-
-    if game_type is not None:
-        cayenneExp += f" and gameTypeId={game_type}"
-    
-    if franchise_id is not None:
-        cayenneExp += f" and franchiseId={franchise_id}"
-
-    if opponent_franchise_id is not None:
-        cayenneExp += f" and opponentFranchiseId={opponent_franchise_id}"
-
-    if home_or_road is not None:
-        cayenneExp += f" and homeRoad='{home_or_road}'"
-
-    if game_result is not None:
-        cayenneExp += f" and decision='{game_result}'"
-
-    # Construct the factCayenneExp 
-    factCayenneExp = f"gamesPlayed>={min_gp}"
-
-    if max_gp is not None:
-        factCayenneExp += f" and gamesPlayed<={max_gp}"
-    
-    if property is not None:
-        # Convert to lists if they are not already
-        property = property if isinstance(property, list) else [property]
-        comparator = comparator if isinstance(comparator, list) else [comparator]
-        value = value if isinstance(value, list) else [value]
-
-        # Construct the factCayenneExp parameters
-        for prop, comp, val in zip(property, comparator, value):
-            factCayenneExp += f" and {prop}{comp}{val}"
-
-    # Construct the query parameters
-    params = {
-        "isAggregate": str(aggregate),
-        "isGame": str(is_game),
-        "start": "0",
-        "limit": str(team_limit),
-        "factCayenneExp": factCayenneExp,
-        "cayenneExp": cayenneExp
-    }
-
-    if sort is not None:
-        # Convert sort and direction to lists if they are not already
-        sort = sort if isinstance(sort, list) else [sort]
-        sort_direction = sort_direction if isinstance(sort_direction, list) else [sort_direction]
-
-        # Construct the sort parameters
-        sort_params = [{"property": field, "direction": dir} for field, dir in zip(sort, sort_direction)]
-        sort_json = json.dumps(sort_params)
-        params["sort"] = sort_json
-
-    # Initialize an empty list to store the results
-    all_teams_data = []
-
-    # Loop over multiple times to fetch all skaters
-    if return_all:
-        while True:
-            # Construct the complete URL
-            url = f"{base_url}?{'&'.join([f'{key}={value}' for key, value in params.items()])}"
-
-            # Make API request
-            data = make_api_request(url, input_validation=input_validation)
-
-            if data is None:
-                return None
-
-            all_teams_data.extend(data.get("data", []))
-
-            # Check if there are more players to fetch
-            if len(all_teams_data) >= data.get("total", 0):
-                break
-
-            # Update the starting position for the next request
-            params["start"] = str(len(all_teams_data))
-
-        return all_teams_data
+        return all_data
     else:
         # Update the starting position based on the start provided
         params["start"] = str(start)
@@ -2595,9 +2194,9 @@ def validate_report(report=None, key=None, config_data=None, view=None, return_f
     """
     # Define key mapping dictionary
     key_mapping = {
-        "skaters": "playerReportData",
-        "goalies": "goalieReportData",
-        "teams": "teamReportData",
+        "skater": "playerReportData",
+        "goalie": "goalieReportData",
+        "team": "teamReportData",
         "aggregated": "aggregatedColumns",
         "individual": "individualColumns",
     }
@@ -2658,9 +2257,9 @@ def validate_fields(field=None, report=None, key=None, is_game=None, config_data
     """
     # Define key mapping dictionary
     key_mapping = {
-        "skaters": "playerReportData",
-        "goalies": "goalieReportData",
-        "teams": "teamReportData",
+        "skater": "playerReportData",
+        "goalie": "goalieReportData",
+        "team": "teamReportData",
         "aggregated": "aggregatedColumns",
         "individual": "individualColumns",
     }
@@ -2740,3 +2339,45 @@ def validate_player_seasons(season, player_id, return_fields=False):
     return False
 
 #TODO use get_club_stats_season to validate seasons for club_stats
+
+#TODO finalize function
+def validate_kwargs(key, kwargs):
+    """
+    Validate input parameters based on the key.
+
+    Parameters:
+    - key (str): 'skater', 'goalie', or 'team'.
+    - kwargs (dict): Keyword arguments for additional parameters.
+
+    Raises:
+    - ValueError: If any input parameter is invalid.
+    """
+
+    # Get parameters based on the key
+    params = {
+        "skater": {
+            "position": validate_position,
+            "player_name": lambda value: validate_players(value, key="name", is_active=None, return_fields=False),
+            "is_rookie": validate_boolean,
+            "is_active": validate_boolean,
+            "is_in_hall_of_fame": validate_boolean,
+            "nationality_code": lambda value: validate_countries(value, key="nationalityCode", countries=None, return_fields=False),
+            "birth_state_province_code": lambda value: validate_countries(value, key="birthStateProvince", countries=None, return_fields=False),
+            "shoots_catches": validate_shoots,
+            # Add more parameters and their validation functions here
+        },
+        "goalie": {
+            # Define validation for goalie parameters
+        },
+        "team": {
+            # Define validation for team parameters
+        }
+    }
+
+    # Validate parameters
+    for param, value in kwargs.items():
+        if param in params.get(key, {}):
+            validation_func = params[key][param]
+            if not validation_func(value):
+                raise ValueError(f"Invalid value '{value}' for parameter '{param}'.")
+            
