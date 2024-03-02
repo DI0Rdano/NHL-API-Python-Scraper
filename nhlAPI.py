@@ -9,9 +9,6 @@ from datetime import datetime
 import json
 import time
 
-# Session object for making HTTP requests
-session = requests.Session()
-
 #####################################################################################################################################################
 # Scraping functions for various NHL API endpoints ##################################################################################################
 #####################################################################################################################################################
@@ -74,16 +71,16 @@ def get_countries(include_state_provinces=True, sort="countryName", direction="A
     # Input validation
     if input_validation:
         # Validate include_stateProvinces parameter
-        if not validate_parameter(param="include_state_provinces", value=include_state_provinces):
-            raise ValueError(f"(get_countries) Invalid include state_provinces='{include_state_provinces}'. Valid options are 'TRUE' and 'FALSE'.")
+        if include_state_provinces is not None:
+            validate_parameter(param="include_state_provinces", value=include_state_provinces)
 
         # Validate sort parameter
         if sort is not None and not validate_field(sort, key="countries"):
             raise ValueError(f"(get_countries) Invalid sort='{sort}'. Valid fields include strings: 'id', 'country3Code', 'countryCode', 'countryName', 'hasPlayerStats', 'imageUrl', 'iocCode', 'isActive', 'nationalityName', 'olympicUrl', 'thumbnailUrl'.")
 
         # Validate direction parameter
-        if not validate_parameter(param="direction", value=direction):
-            raise ValueError(f"(get_countries) Invalid sort direction='{direction}'. Valid sorting options are 'ASC' and 'DESC'.")
+        if direction is not None:    
+            validate_parameter(param="direction", value=direction)
 
         # Validate filter parameter
         if filter is not None and not validate_field(filter, key="countries"):
@@ -141,21 +138,21 @@ def get_franchises(include_first_season=True, include_last_season=True, sort="fu
 
     # Input validation
     if input_validation:
-        # Validate include_firstSeason parameter
-        if not validate_parameter(param="include_first_season", value=include_first_season):
-            raise ValueError(f"(get_franchises) Invalid include_firstSeason='{include_first_season}'. Valid options are 'TRUE' and 'FALSE'.")
+        # Validate include_first_season parameter
+        if include_first_season is not None:
+            validate_parameter(param="include_first_season", value=include_first_season)
 
-        # Validate include_lastSeason parameter
-        if not validate_parameter(param="include_last_season", value=include_last_season):
-            raise ValueError(f"(get_franchises) Invalid include_lastSeason={include_last_season}'. Valid options are 'TRUE' and 'FALSE'.")
+        # Validate include_last_season parameter
+        if include_last_season is not None:
+            validate_parameter(param="include_last_season", value=include_last_season)
 
         # Validate sort parameter
         if sort is not None and not validate_field(sort, key="franchises"):
             raise ValueError("(get_franchises) Invalid sort field. Valid sorting fields include strings: 'fullName', 'teamCommonName', 'teamPlaceName', 'id'.")
             
         # Validate direction parameter
-        if not validate_parameter(param="direction", value=direction):
-            raise ValueError(f"(get_countries) Invalid sort direction='{direction}'. Valid sorting options are 'ASC' and 'DESC'.")
+        if direction is not None:
+            validate_parameter(param="direction", value=direction)
 
         # Validate filter parameter
         if filter is not None and not validate_field(filter, key="franchises"):
@@ -222,9 +219,8 @@ def get_seasons(sort="id", direction="DESC", filter=None, input_validation=True)
         if sort is not None and not validate_field(sort, key="seasons"):
             raise ValueError(f"(get_seasons) Invalid sort='{sort}'. Valid sorting fields include strings: 'id', 'allStarGameInUse', 'conferencesInUse', 'divisionsInUse', 'endDate', 'entryDraftInUse', 'formattedSeasonId', 'minimumPlayoffMinutesForGoalieStatsLeaders', 'minimumRegularGamesForGoalieStatsLeaders', 'nhlStanleyCupOwner', 'numberOfGames', 'olympicsParticipation', 'pointForOTLossInUse', 'preseasonStartdate', 'regularSeasonEndDate', 'rowInUse', 'seasonOrdinal', 'startDate', 'supplementalDraftInUse', 'tiesInUse', 'totalPlayoffGames', 'totalRegularSeasonGames', 'wildcardInUse'.")
         
-        # Validate direction parameter
-        if not validate_parameter(param="direction", value=direction):
-            raise ValueError(f"(get_countries) Invalid sort direction='{direction}'. Valid sorting options are 'ASC' and 'DESC'.")
+        if direction is not None: 
+            validate_parameter(param="direction", value=direction)
 
         # Validate filter parameter
         if filter is not None and not validate_field(filter, key="seasons"):
@@ -278,8 +274,8 @@ def get_draftrounds(sort="draftYear", direction="DESC", filter=None, input_valid
             raise ValueError("(get_draftrounds) Invalid sort field. Valid sorting fields include strings: 'draftYear', 'id', 'rounds'.")
 
         # Validate direction parameter
-        if not validate_parameter(param="direction", value=direction):
-            raise ValueError(f"(get_countries) Invalid sort direction='{direction}'. Valid sorting options are 'ASC' and 'DESC'.")
+        if direction is not None:
+            validate_parameter(param="direction", value=direction)
 
         # Validate sort parameter
         if filter is not None and not validate_field(filter, key="draftrounds"):
@@ -327,12 +323,12 @@ def get_players(player_limit=None, is_active=None, input_validation=True):
 
     if input_validation:
         # Validate team_code parameter
-        if is_active is not None and not validate_parameter(param="is_active", value=is_active):
-            raise ValueError(f"(get_players) Invalid is_active='{is_active}'. Valid options are 'TRUE' and 'FALSE'.")
+        if is_active is not None:
+            validate_parameter(param="is_active", value=is_active)
 
         # Validate season parameter
-        if player_limit is not None and not validate_parameter(param="limit", value=player_limit):
-            raise ValueError(f"(get_players) Invalid player_limit='{player_limit}'. Must be a positive integer.")
+        if player_limit is not None:
+            validate_parameter(param="limit", value=player_limit)
 
     # Adjust the player limit to the number of players
     if player_limit is None:
@@ -919,11 +915,11 @@ def get_playbyplay(game_id, view=None, input_validation=True):
     """
     if input_validation:
         # Validate game_id
-        if not validate_parameter(param="game_id", value=game_id):
-            raise ValueError(f"Invalid game_id='{game_id}'. It should be a positive integer or a string convertible to an integer.")
+        if game_id is not None:
+            validate_parameter(param="game_id", value=game_id)
 
-        # Convert game_id to integer if it's a string
-        game_id = int(game_id)
+            # Convert game_id to integer if it's a string
+            game_id = int(game_id)
 
     # Construct the URL for the 'play-by-play' endpoint
     base_url = "https://api-web.nhle.com/v1/gamecenter/"
@@ -970,11 +966,11 @@ def get_boxscore(game_id, view=None, input_validation=True):
     """
     if input_validation:
         # Validate game_id
-        if not validate_parameter(param="game_id", value=game_id):
-            raise ValueError(f"Invalid game_id='{game_id}'. It should be a positive integer or a string convertible to an integer.")
+        if game_id is not None:
+            validate_parameter(param="game_id", value=game_id)
 
-        # Convert game_id to integer if it's a string
-        game_id = int(game_id)
+            # Convert game_id to integer if it's a string
+            game_id = int(game_id)
 
     # Construct the URL for the 'play-by-play' endpoint
     base_url = "https://api-web.nhle.com/v1/gamecenter/"
@@ -1024,16 +1020,16 @@ def get_shifts(game_id, sort=None, direction=None, view=None, input_validation=T
 
     if input_validation:
         # Validate game_id
-        if not validate_parameter(param="game_id", value=game_id):
-            raise ValueError(f"Invalid game_id='{game_id}'. It should be a positive integer or a string convertible to an integer.")
+        if game_id is not None:
+            validate_parameter(param="game_id", value=game_id)
 
         # Validate sort field
         if sort is not None and not validate_field(sort, key="shifts"):
             raise ValueError(f"Invalid sort='{sort}'.")
 
         # Validate direction parameter
-        if not validate_parameter(param="direction", value=direction):
-            raise ValueError(f"(get_countries) Invalid sort direction='{direction}'. Valid sorting options are 'ASC' and 'DESC'.")
+        if direction is not None:
+            validate_parameter(param="direction", value=direction)
 
     # Construct the URL for the 'shiftcharts' endpoint with optional sorting
     base_url = "https://api.nhle.com/stats/rest/en/shiftcharts"
@@ -1253,10 +1249,71 @@ def get_club_schedule(team_code, period="month", date="now", view=None, input_va
     except Exception as e:
         raise ValueError(f"Error fetching data: {e}")
 
+def get_assets(player_id=None, key="headshot", season=None, team_code=None, light=True, input_validation=True):
+    """
+    Construct the URL for fetching headshots, action shots, or team logos.
+
+    Parameters:
+    - player_id (str): The unique identifier of the player.
+    - key (str): The type of asset to retrieve. Can be "headshot", "action", or "logo". Default is "headshot".
+    - season (str): The season for which the asset is requested (e.g., '20232024'). Default is None.
+    - team_code (str): The team code (e.g., 'TOR' for Toronto Maple Leafs). Default is None.
+    - light (bool): Flag to choose between light and dark version of team logo. Default is True (light version).
+    - input_validation (bool): Flag to enable/disable input validation. Default is 'True'.
+
+    Returns:
+    - str: The URL for the requested asset.
+    """
+    
+    if input_validation:
+        # Validate the key parameter
+        if key not in ["headshot", "action", "logo"]:
+            raise ValueError("Invalid value for action parameter. Must be 'headshot', 'action', or 'logo'.")
+
+        # Validate team_code parameter
+        if team_code is not None and not validate_team_code(team_code, return_fields=False):
+            valid_team_codes = validate_team_code(team_code, return_fields=True)
+            raise ValueError(f"Invalid team_code='{team_code}'. Valid team codes include: {valid_team_codes}")
+
+        if key != "logo":
+            # Validate season parameter
+            if season is not None:
+                if not validate_season(player_id=player_id, return_fields=False):
+                    valid_seasons = validate_season(player_id=player_id, return_fields=True)
+                    raise ValueError(f"Invalid season='{season}'. Valid seasons include: {valid_seasons}")
+
+    # Get player information if necessary
+    if key != "logo":
+        if season is None or team_code is None:
+            player_info = get_player_landing(player_id)
+
+        # If season is not provided, get the most recent season where the league is NHL
+        if season is None:
+            seasons = [season_data["season"] for season_data in player_info.get("seasonTotals", []) if season_data.get("leagueAbbrev") == "NHL"]
+            season = max(seasons) if seasons else None
+
+        # If team code is not provided, get the default team for the player
+        if team_code is None:
+            for season_data in player_info.get("seasonTotals", []):
+                if season_data.get("leagueAbbrev") == "NHL" and season_data.get("teamName", {}).get("default"):
+                    team_name_default = season_data.get("teamName", {}).get("default")
+                    team_info = get_team_information()
+                    for team_name, team_data in team_info.items():
+                        if team_data["teamName"] == team_name_default:
+                            team_code = team_data["teamAbbrev"]
+                            break
+                    break
+
+    if key == "headshot":
+        return f"https://assets.nhle.com/mugs/nhl/{season}/{team_code}/{player_id}.png"
+    elif key == "action":
+        return f"https://assets.nhle.com/mugs/actionshots/1296x729/{player_id}.jpg"
+    elif key == "logo":
+        logo_type = "light" if light else "dark"
+        return f"https://assets.nhle.com/logos/nhl/svg/{team_code}_{logo_type}.svg"
+
 #TODO get_club_stats https://api-web.nhle.com/v1/club-stats/TOR/20222023/2
 #TODO https://api.nhle.com/stats/rest/en/leaders/skaters/points?cayenneExp=season=20232024%20and%20gameType=2%20and%20player.positionCode%20=%20%27D%27
-#TODO https://assets.nhle.com/mugs/nhl/20232024/TOR/8477479.png
-#TODO https://assets.nhle.com/mugs/actionshots/1296x729/8477479.jpg
 #TODO https://api-web.nhle.com/v1/player-spotlight
 #TODO https://api.nhle.com/stats/rest/en/players
 #TODO https://api.nhle.com/stats/rest/en/glossary?sort=fullName
@@ -1284,6 +1341,9 @@ def make_api_request(url, timeout=10, retries=3, input_validation=True):
     Returns:
     - dict or None: The JSON response from the API or None in case of error.
     """
+    # Session object for making HTTP requests
+    session = requests.Session()
+
     # Input validation
     if input_validation:
         # Validate URL parameter
@@ -1300,7 +1360,7 @@ def make_api_request(url, timeout=10, retries=3, input_validation=True):
 
     for attempt in range(retries):
         try:
-            response = requests.get(url, timeout=timeout)
+            response = session.get(url, timeout=timeout)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
@@ -1720,7 +1780,7 @@ def validate_field(sort_field, key=None):
     else:
         return False
 
-def validate_season(season, seasons_info=None, team_info=None, team_code=None, return_fields=False):
+def validate_season(season=None, seasons_info=None, team_info=None, team_code=None, player_id=None, return_fields=False):
     """
     Validate the season.
 
@@ -1736,6 +1796,12 @@ def validate_season(season, seasons_info=None, team_info=None, team_code=None, r
                     and can be converted to a string, False otherwise.
                     If return_fields is True, returns a list of all available seasons.
     """
+    if player_id is not None:
+        player_info = get_player_landing(player_id)
+        available_seasons = [season_data["season"] for season_data in player_info.get("seasonTotals", []) if season_data.get("leagueAbbrev") == "NHL"]
+        if return_fields:
+            return available_seasons
+
     if seasons_info is None:
         # Call get_seasons function to retrieve seasons_info
         seasons_info = get_seasons()
@@ -1750,8 +1816,9 @@ def validate_season(season, seasons_info=None, team_info=None, team_code=None, r
         if team_info is None:
             return False  # Unable to retrieve team info
 
+    if season is not None:
     # Check if the season is within the available seasons
-    available_seasons = [str(season_data.get("id")) for season_data in seasons_info.get("data", [])]
+        available_seasons = [str(season_data.get("id")) for season_data in seasons_info.get("data", [])]
 
     # If return_fields is True, return available seasons immediately
     if return_fields:
@@ -2064,7 +2131,7 @@ def validate_fields(field=None, report=None, key=None, is_game=None, config_data
         return True #compare_list(field=field, json_list=available_fields, return_boolean=True) #TODO fix list comparison issues
     
 #TODO fix list comparison issues (bypass by returning_fields and using compare_lists)
-def validate_player_seasons(season, player_id, return_fields=False):
+def validate_player_seasons(player_id, season=None, return_fields=False):
     """
     Validate the season parameter for a specific player_id.
 
@@ -2091,8 +2158,9 @@ def validate_player_seasons(season, player_id, return_fields=False):
         return list(nhl_seasons)
 
     # Check if the provided season is within the list of NHL seasons for the player
-    if season in nhl_seasons:
-        return True
+    if season is not None:
+        if season in nhl_seasons:
+            return True
 
     return False
 
